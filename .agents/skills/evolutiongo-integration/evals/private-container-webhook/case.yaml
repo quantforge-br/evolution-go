@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: private-container-webhook
+expected_outcome: |
+  integration-plan.md explains the exact-host allowlist, explicit shared private Docker networking, literal Compose environment behavior, complete connect payload, unsigned/token-bearing events and durable duplicate-safe webhook acknowledgement. It preserves Dokploy HTTP origin settings and performs no deployment mutation.

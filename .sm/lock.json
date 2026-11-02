@@ -8,6 +8,14 @@
       "baseTreeHash": "573cb5eab4fe13b93bac77c365c190f086c942a5b0347ee3c9c8881f602b8b43",
       "dirHash": "573cb5eab4fe13b93bac77c365c190f086c942a5b0347ee3c9c8881f602b8b43",
       "syncedAt": "2026-11-02T16:48:01.603148038Z"
+    },
+    "evolutiongo-integration": {
+      "canonicalPath": "evolutiongo-integration",
+      "baseCommit": "bf11b67d66b69ade084b001d786104654e70fe24",
+      "baseTree": "05a7f88bd50f1dac185b0657ceccb8e426cf9b6f",
+      "baseTreeHash": "13046b161d8b0e41687e88614af71ea4ec0f56ccec96f4217bfeec393ddc3415",
+      "dirHash": "26a6f58c03b0f958f9ac85e3e037f7cab2ce155b3293f9240a0b140e3bfa0fa8",
+      "syncedAt": "2026-11-02T21:50:06.6100407Z"
     }
   }
 }

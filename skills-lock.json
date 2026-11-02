@@ -5,6 +5,12 @@
       "skillPath": "dokploy-management/SKILL.md",
       "source": "/home/diogo/dev/skills",
       "sourceType": "local"
+    },
+    "evolutiongo-integration": {
+      "computedHash": "d36c93dba7921a773498fc40cabf1139078df954a3e63b3a637598f29e92ffd6",
+      "skillPath": "evolutiongo-integration/SKILL.md",
+      "source": "/home/diogo/dev/skills",
+      "sourceType": "local"
     }
   },
   "version": 1
