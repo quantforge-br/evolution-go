@@ -2,7 +2,6 @@
 """Route Dokploy CLI and SSH commands through explicitly named local instances."""
 
 import argparse
-import fcntl
 import json
 import os
 import re
@@ -12,7 +11,6 @@ import stat
 import subprocess
 import sys
 import tomllib
-from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -31,14 +29,12 @@ class Instance:
     api_key_env: str | None
 
 
+CLI = "dokploy-cli"
+
+
 def default_config_path() -> Path:
     root = Path(os.environ.get("XDG_CONFIG_HOME", "~/.config")).expanduser()
-    return root / "cli-anything-dokploy" / "instances.toml"
-
-
-def state_root() -> Path:
-    root = Path(os.environ.get("XDG_STATE_HOME", "~/.local/state")).expanduser()
-    return root / "cli-anything-dokploy" / "instances"
+    return root / "dokploy-cli" / "instances.toml"
 
 
 def local_path(value: str, parent: Path) -> Path:
@@ -117,7 +113,7 @@ def load_instances(path: Path) -> dict[str, Instance]:
         if key_env is not None and (
             not isinstance(key_env, str)
             or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key_env)
-            or key_env in {"DOKPLOY_URL", "CLI_ANYTHING_DOKPLOY_SESSION"}
+            or key_env == "DOKPLOY_URL"
         ):
             raise ConfigError(f"Invalid api_key_env reference for instance '{name}'.")
         instances[name] = Instance(
@@ -160,7 +156,7 @@ def read_api_key(instance: Instance) -> str:
 
 def child_environment(instances: dict[str, Instance]) -> dict[str, str]:
     env = os.environ.copy()
-    for name in {"DOKPLOY_API_KEY", "DOKPLOY_URL", "CLI_ANYTHING_DOKPLOY_SESSION"} | {
+    for name in {"DOKPLOY_API_KEY", "DOKPLOY_URL"} | {
         instance.api_key_env for instance in instances.values() if instance.api_key_env
     }:
         env.pop(name, None)
@@ -169,22 +165,19 @@ def child_environment(instances: dict[str, Instance]) -> dict[str, str]:
 
 def validate_cli_args(args: list[str]) -> None:
     if not args:
-        raise ConfigError(
-            "Provide a non-interactive CLI command after '--'; REPL mode is not supported."
-        )
+        raise ConfigError("Provide a dokploy-cli command after '--'.")
     for arg in args:
-        option = arg.split("=", 1)[0]
-        if option in {"--url", "--session", "--project"}:
+        if arg.split("=", 1)[0] == "--url":
             raise ConfigError(
-                "URL and session overrides are not allowed; choose an instance alias instead."
+                "URL overrides are not allowed; choose an instance alias instead."
             )
-    # Only the root options can precede a command; do not interpret option values as commands.
+    # Only root options can precede a command; do not interpret option values as commands.
     position = 0
     while position < len(args):
         arg = args[position]
-        if arg in {"--json", "--dry-run"}:
+        if arg in {"--json", "--show-secrets"}:
             position += 1
-        elif arg in {"--timeout"}:
+        elif arg == "--timeout":
             position += 2
         elif arg.startswith("--timeout="):
             position += 1
@@ -192,63 +185,11 @@ def validate_cli_args(args: list[str]) -> None:
             if arg in {"--help", "--version"} and position == len(args) - 1:
                 return
             raise ConfigError(
-                "Unsupported root option; put CLI group options after the command."
+                "Unsupported root option; put command options after the command."
             )
         else:
-            break
-    command = args[position:]
-    if not command or command[0] == "repl":
-        raise ConfigError(
-            "Provide a non-interactive CLI command; REPL mode is not supported."
-        )
-    if (
-        command[0] == "session"
-        and len(command) > 1
-        and command[1] in {"connect", "disconnect"}
-    ):
-        raise ConfigError(
-            "Manage connections in instances.toml, not with session connect/disconnect."
-        )
-
-
-@contextmanager
-def bound_session(instance: Instance):
-    directory = state_root() / instance.name
-    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
-    if directory.is_symlink():
-        raise ConfigError("Instance state directory must not be a symbolic link.")
-    directory.chmod(0o700)
-    lock_path, path = directory / ".lock", directory / "session.json"
-    flags = os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW
-    with os.fdopen(os.open(lock_path, flags, 0o600), "r+") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        try:
-            if path.is_symlink():
-                raise ConfigError("Instance session must not be a symbolic link.")
-            if path.exists():
-                try:
-                    with path.open(encoding="utf-8") as handle:
-                        data = json.load(handle)
-                    stored_url = data["connection"]["url"]
-                except (OSError, UnicodeError, ValueError, KeyError, TypeError):
-                    raise ConfigError(
-                        f"Invalid or unbound session for instance '{instance.name}': {path}."
-                    ) from None
-                if stored_url != instance.url:
-                    raise ConfigError(
-                        f"Session URL differs from instance '{instance.name}'. Use a new alias for a new server "
-                        "or explicitly archive the old session directory before reusing this alias."
-                    )
-                path.chmod(0o600)
-            else:
-                # Seed the binding without adding a connection undo entry on every invocation.
-                with path.open("x", encoding="utf-8") as handle:
-                    path.chmod(0o600)
-                    json.dump({"connection": {"url": instance.url}}, handle)
-                    handle.write("\n")
-            yield path
-        finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
+            return
+    raise ConfigError("Provide a dokploy-cli command after the root options.")
 
 
 def executable(name: str) -> str:
@@ -260,16 +201,12 @@ def executable(name: str) -> str:
 
 def run_cli(instance: Instance, instances: dict[str, Instance], args: list[str]) -> int:
     validate_cli_args(args)
-    program = executable("cli-anything-dokploy")
+    program = executable(CLI)
     key = read_api_key(instance)
     env = child_environment(instances)
     env.update(DOKPLOY_URL=instance.url, DOKPLOY_API_KEY=key)
-    with bound_session(instance) as path:
-        env["CLI_ANYTHING_DOKPLOY_SESSION"] = str(path)
-        print(f"[instance {instance.name}] {instance.url}", file=sys.stderr, flush=True)
-        result = subprocess.run(
-            [program, "--session", str(path), *args], check=False, env=env, umask=0o077
-        )
+    print(f"[instance {instance.name}] {instance.url}", file=sys.stderr, flush=True)
+    result = subprocess.run([program, *args], check=False, env=env, umask=0o077)
     return result.returncode
 
 

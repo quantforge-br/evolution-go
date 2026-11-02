@@ -2,8 +2,8 @@
 
 ## Local setup
 
-The helper requires Python 3.11+ (standard library only), a Unix host, and the
-existing CLI on PATH. It does not add a native --instance flag to the CLI.
+The helper requires Python 3.11+ (standard library only), a Unix host, and
+`dokploy-cli` on PATH. It does not add a native --instance flag to the CLI.
 Resolve SKILL_DIR to the directory containing this skill's SKILL.md, not the
 current working directory. For example, in this repository:
 
@@ -13,12 +13,12 @@ python3 "$SKILL_DIR/scripts/dokploy_instance.py" --help
 ~~~
 
 Store personal configuration outside the repository, by default at
-~/.config/cli-anything-dokploy/instances.toml. XDG_CONFIG_HOME overrides
-~/.config. An explicit --config PATH before the subcommand overrides this path.
+~/.config/dokploy-cli/instances.toml. XDG_CONFIG_HOME overrides ~/.config.
+An explicit --config PATH before the subcommand overrides this path.
 The helper never chooses a global active instance.
 
 ~~~bash
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/cli-anything-dokploy"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/dokploy-cli"
 install -d -m 700 "$CONFIG_DIR" "$CONFIG_DIR/secrets"
 # Only copy the example when instances.toml does not already exist.
 test -e "$CONFIG_DIR/instances.toml" || \
@@ -85,13 +85,12 @@ SSH targets the configured Dokploy host, not a service's remote Docker node.
 ~~~bash
 python3 "$SKILL_DIR/scripts/dokploy_instance.py" list
 python3 "$SKILL_DIR/scripts/dokploy_instance.py" list --json
-python3 "$SKILL_DIR/scripts/dokploy_instance.py" run home-server -- --json services list
-python3 "$SKILL_DIR/scripts/dokploy_instance.py" run quantforge -- target use compose backend
-python3 "$SKILL_DIR/scripts/dokploy_instance.py" run quantforge -- --json deployment list
+python3 "$SKILL_DIR/scripts/dokploy_instance.py" run home-server -- --json service list
+python3 "$SKILL_DIR/scripts/dokploy_instance.py" run quantforge -- --json deployment list compose COMPOSE_ID
 python3 "$SKILL_DIR/scripts/dokploy_instance.py" ssh quantmind -- docker ps
 ~~~
 
-For all workflows in SKILL.md, replace the leading cli-anything-dokploy with
+For all workflows in SKILL.md, replace the leading dokploy-cli with
 python3 "$SKILL_DIR/scripts/dokploy_instance.py" run ALIAS --. Put --json and
 other CLI root options after this separator, before the CLI command.
 The helper preserves CLI stdout and exit codes. An instance/destination banner
@@ -104,45 +103,31 @@ command, so metacharacters are literal arguments rather than implicit pipelines.
 When a remote pipeline is actually needed, explicitly use sh -c and review the
 whole remote script. SSH can bypass the API's --yes guards: apply the skill's
 confirmation rules before any mutating remote command.
-Interactive SSH and the CLI REPL are intentionally unsupported: commands must
-have an explicit operation so a persistent interpreter cannot change instances.
+Interactive SSH is intentionally unsupported: commands must have an explicit
+operation.
 
-## Session isolation
+## Instance isolation
 
-Each alias has its own directory beneath
-~/.local/state/cli-anything-dokploy/instances/<alias>/, or the corresponding
-XDG_STATE_HOME directory. It contains session.json, a per-instance lock, and any
-preview artifacts. Targets, staged env/compose, history and undo remain separate.
-New session directories use mode 700 and files use 600. The API key exists only
-in the CLI child process environment, never in the session or argv. Configured
-API-key environment variables are removed from other child environments,
-including SSH. The calling shell's environment is not modified.
+`dokploy-cli` is stateless, so nothing per alias is stored by the helper. Each
+run starts the CLI with DOKPLOY_URL and DOKPLOY_API_KEY for that alias only; the
+key never appears in argv. DOKPLOY_URL, DOKPLOY_API_KEY and every configured
+API-key environment variable are removed from the child environment first, and
+from SSH children entirely. The calling shell's environment is not modified.
 
-The helper binds the session URL once, rejects --url/--session/--project
-(including --option=value), session connect/disconnect, and REPL entry. A URL
-change in configuration fails closed when an old session exists. For a different
-server, prefer a new alias; archive the old alias's entire state directory only
-after explicitly deciding to discard its target, staged changes and previews.
-Changing the API key without changing the URL does not require resetting state.
-An alias still refers to the same server if the server behind a URL is replaced;
-archive the session explicitly after such a migration.
-
-Operations on the same alias are serialized by a lock covering the entire child
-process, preventing concurrent read/modify/write session loss. Different aliases
-can run concurrently. Conversations using the same alias still share that alias's
-target; reselect the requested service immediately before target-dependent work.
-For multi-step mutations, prefer explicit IDs rather than relying on a target
-that another conversation may change between commands.
+The helper rejects `--url` (including `--url=value`) anywhere in the arguments and
+any unknown root option before the command. The only state the CLI writes is the
+optional `spec refresh` cache, keyed by URL under
+`${XDG_CACHE_HOME:-~/.cache}/dokploy-cli/`, so aliases never share it. Different
+aliases, and the same alias, can run concurrently.
 
 ## Troubleshooting
 
 | Symptom | Action |
 |---|---|
-| Config not found | Create local instances.toml; do not silently use the legacy session |
+| Config not found | Create local instances.toml; never fall back to global DOKPLOY_URL/DOKPLOY_API_KEY |
 | Unknown alias | List the configured aliases and ask which one the operator intended |
 | Key file permissions refused | Set the file to 600 and its parent directory to 700; verify ownership |
 | Missing credential | Populate the referenced file or environment variable, never print the key |
-| Session URL differs | Check for an accidental URL edit; use a new alias or explicitly archive old state |
 | SSH host key failure | Ask the operator to verify host identity; do not bypass StrictHostKeyChecking |
 | SSH authentication failure | Check the configured user, identity and SSH agent; API access is independent |
 
@@ -154,7 +139,7 @@ Run helper unit/integration tests without a server or real credentials:
 python3 -m unittest discover -s "$SKILL_DIR/tests" -v
 ~~~
 
-Tests exercise three aliases, process environment and argument isolation,
-per-instance sessions/previews, SSH quoting and host-key flags, fail-closed
-routing, credential permissions, exit codes, and invocation of the actual CLI
-against local state only when that CLI is installed.
+Tests exercise three aliases, process environment and argument isolation, SSH
+quoting and host-key flags, fail-closed routing, credential permissions, exit
+codes, the XDG config default, and, when `dokploy-cli` is installed, a
+`--dry-run` through the real CLI that sends no request.

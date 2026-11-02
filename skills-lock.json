@@ -1,7 +1,7 @@
 {
   "skills": {
     "dokploy-management": {
-      "computedHash": "0c3fc61f384fe9dcb55ed665f999d2c6749f63e80d55e69788dbda507986885f",
+      "computedHash": "0545dfdbf90f501cfc7824eed63b796b1f2d3fc5ab0f69610e95eca01122bdd3",
       "skillPath": "dokploy-management/SKILL.md",
       "source": "/home/diogo/dev/skills",
       "sourceType": "local"
