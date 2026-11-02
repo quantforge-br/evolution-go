@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "skills": {
+    "dokploy-management": {
+      "canonicalPath": "dokploy-management",
+      "baseCommit": "8c2a2a9b2b05a40094e4e62613ec804c3e648e09",
+      "baseTree": "26ba728379c0dc3dff6ab38053237cb645f06f52",
+      "baseTreeHash": "573cb5eab4fe13b93bac77c365c190f086c942a5b0347ee3c9c8881f602b8b43",
+      "dirHash": "573cb5eab4fe13b93bac77c365c190f086c942a5b0347ee3c9c8881f602b8b43",
+      "syncedAt": "2026-11-02T16:48:01.603148038Z"
+    }
+  }
+}
