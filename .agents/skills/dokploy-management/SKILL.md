@@ -1,14 +1,15 @@
 ---
 name: dokploy-management
 description: |
-  Manage a live Dokploy PaaS instance from the command line with `cli-anything-dokploy`: projects, applications, compose services, databases (postgres, mysql, mariadb, mongo, redis, libsql), deployments and their logs, Docker containers/images/volumes/networks/disk on any node, domains and DNS providers, remote servers, volume backups, registries, SSH keys, environment variables, and any of the server's REST endpoints through `api call`.
-  Use when the user wants to deploy or administer Dokploy resources, point a session at a service, read deploy logs, browse container or volume files, or automate a Dokploy server.
+  Manage one or multiple live Dokploy PaaS instances by named aliases from the command line with `cli-anything-dokploy`: projects, applications, compose services, databases (postgres, mysql, mariadb, mongo, redis, libsql), deployments and their logs, Docker containers/images/volumes/networks/disk on any node, domains and DNS providers, remote servers, volume backups, registries, SSH keys, environment variables, and any of the server's REST endpoints through `api call`.
+  Use when the user wants to deploy or administer Dokploy resources, point a session at a service, read deploy logs, browse container or volume files, automate a Dokploy server, select an instance by alias, compare servers, or access its host over SSH.
   Keywords: dokploy, paas, deploy, docker, traefik, application, compose, postgres, mysql, mariadb, mongo, redis, libsql, database, server, backup, domain, dns, certificate, registry, ssh-key, logs, deployment, container, volume, session, target, api.
 compatibility: |
   Requires the `cli-anything-dokploy` command on PATH (pip: `pip install cli-anything-dokploy`,
   source: `pip install -e .` inside the project's `agent-harness/` directory).
-  Requires a reachable Dokploy server and an API key.
-allowed-tools: Bash(cli-anything-dokploy:*), Bash(which:*), Bash(export:*)
+  Requires a reachable Dokploy server and an API key. Named-instance helper requires Python 3.11+
+  on Unix; SSH uses existing Host entries in ~/.ssh/config.
+allowed-tools: Bash(cli-anything-dokploy:*), Bash(python3:*), Bash(which:*), Bash(export:*)
 ---
 
 # Dokploy management
@@ -19,20 +20,71 @@ with the `x-api-key` header. The 600+ endpoint catalogue comes from the server's
 own OpenAPI document, so a newer server exposes its newer endpoints without a
 CLI upgrade.
 
-## Before you start
+## Choose an instance before operating
 
-```bash
+For named instances, use the bundled helper rather than changing global
+DOKPLOY_URL/DOKPLOY_API_KEY variables. Resolve SKILL_DIR from the location of
+this SKILL.md, not the caller's working directory. Read
+[references/multi-instance.md](references/multi-instance.md) for local setup,
+credential references, SSH, isolation, and troubleshooting. The starter config
+is [assets/instances.example.toml](assets/instances.example.toml); real endpoints
+and keys belong outside the repository.
+
+~~~bash
+python3 "$SKILL_DIR/scripts/dokploy_instance.py" list --json
+python3 "$SKILL_DIR/scripts/dokploy_instance.py" run home-server -- --json services list
+python3 "$SKILL_DIR/scripts/dokploy_instance.py" run quantforge -- target use compose backend
+python3 "$SKILL_DIR/scripts/dokploy_instance.py" run quantforge -- compose status
+python3 "$SKILL_DIR/scripts/dokploy_instance.py" ssh quantmind -- docker ps
+~~~
+
+Apply these interaction rules:
+- Resolve the user's alias from the local registry, never from hardcoded URLs or
+  keys in this skill. List metadata without reading or printing key contents.
+- Keep a clearly selected instance in conversational context, but pass its alias
+  explicitly on every invocation. If no instance is established or the request
+  is ambiguous, ask which one; never guess a production destination.
+- For comparisons, query each requested alias separately and label every result
+  by instance. Do not perform cross-instance mutations without explicit scope.
+- Use the API for Dokploy operations, SSH for host investigation when needed.
+  The configured SSH host is not necessarily a service's remote Docker node.
+- Before destructive operations, identify the alias, destination and resource,
+  and obtain authorization for that scope. SSH has no CLI --yes protection.
+- Unknown aliases, missing keys and mismatched session URLs fail closed; never
+  retry against a default or another instance.
+- Do not use a global active-instance file, REPL, or connection/session overrides.
+  Sessions and previews are isolated per alias. Concurrent commands for one alias
+  are serialized, but its target is shared: reselect the requested service or
+  prefer explicit IDs before target-dependent mutations.
+
+In every command example below, named-instance operation means replacing
+cli-anything-dokploy with
+python3 "$SKILL_DIR/scripts/dokploy_instance.py" run ALIAS --.
+Do not use session connect/disconnect with the helper: configure its local TOML
+instead. The helper keeps stdout/JSON unchanged and labels the destination on
+stderr. API keys are injected only into the CLI child environment.
+
+### Legacy single-instance setup
+
+Use direct CLI invocation only when the operator intentionally uses the legacy
+single-instance environment, not as a fallback for a named-instance error.
+
+~~~bash
 which cli-anything-dokploy || echo "install it first"
 export DOKPLOY_URL="https://dokploy.example.com"
-export DOKPLOY_API_KEY="<key>"        # read from the environment only, never saved
-```
+# Supply DOKPLOY_API_KEY securely in the environment, never echo it.
+cli-anything-dokploy session connect --url "$DOKPLOY_URL"
+~~~
 
-The API key is only ever read from `DOKPLOY_API_KEY`; it is never written to the
-session file. The URL may also be stored in the session with
-`session connect --url`, and `--url` overrides it for a single run.
+The CLI reads its API key from DOKPLOY_API_KEY and never saves it in the session.
+For named instances the helper supplies that variable from a secure file or a
+referenced environment variable, separately for each command.
 
 ## Session and target (the stateful part)
 
+Each alias uses its own session under
+~/.local/state/cli-anything-dokploy/instances/<alias>/session.json (respecting
+XDG_STATE_HOME). The following defaults describe direct legacy CLI usage.
 Everything is driven by a session file (default
 `~/.local/state/cli-anything-dokploy/session.json`, overridable with `--session`
 or `CLI_ANYTHING_DOKPLOY_SESSION`). It stores the URL, the current target, staged
@@ -187,6 +239,9 @@ for *your* server version.
 
 ## Remote nodes
 
+An instance alias chooses an independent Dokploy installation. --server-id does
+not switch installations: it chooses a Docker node registered in that instance.
+
 `--server-id` aims a command at a registered Docker node. Without it, the node
 stored in the session target is used, and with no target the main Dokploy host is
 addressed. `docker.getContainers?serverId=…` against an id the server does not know
@@ -224,6 +279,11 @@ routing happened.
 | `refusing to … without --yes` | Add `--yes` (see Safety rules) |
 
 ## Reference: this skill in practice
+
+Named-instance helper tests run locally with:
+python3 -m unittest discover -s "$SKILL_DIR/tests" -v. They use synthetic
+credentials, fake child processes, and local-only CLI operations. This is
+separate from the single-instance live validation described below.
 
 Validated against a live single-node instance (`v0.30.7`): services, target
 resolution, deploy loop with `deploy-watch`, deployment logs and downloads, docker

@@ -1,0 +1,14 @@
+[instances.home-server]
+url = "https://dokploy.home.example.com"
+ssh_host = "home-server"
+api_key_file = "secrets/home-server.key"
+
+[instances.quantforge]
+url = "https://dokploy.forge.example.com"
+ssh_host = "quantforge"
+api_key_file = "secrets/quantforge.key"
+
+[instances.quantmind]
+url = "https://dokploy.mind.example.com"
+ssh_host = "quantmind"
+api_key_file = "secrets/quantmind.key"
