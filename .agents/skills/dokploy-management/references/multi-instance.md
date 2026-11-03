@@ -62,6 +62,41 @@ These permissions are not encryption. For a secret manager, inject a dedicated
 environment variable into the helper process and set api_key_env to its name.
 An absent or empty credential never falls back to another instance's key.
 
+## CLI installation and updates
+
+The source is `~/dev/dokploy-cli`. Inspect command resolution and the uv receipt
+before any installation; never replace a different tool just because its name
+matches. A fresh installation, with no command conflict, is:
+
+~~~bash
+uv tool install "$HOME/dev/dokploy-cli"
+~~~
+
+For an explicitly requested update or recovery of this repository's tool:
+
+~~~bash
+GENERATOR="$HOME/.agents/skills/cli-generate/scripts/cli_generate.py"
+python3 "$GENERATOR" check --repo "$HOME/dev/dokploy-cli"
+python3 "$GENERATOR" install --reinstall --repo "$HOME/dev/dokploy-cli"
+~~~
+
+The helper refuses foreign uv receipts/entrypoints and never uses `--force`.
+It verifies help, metadata-derived version, read-only `doctor`, and the packaged
+usage-skill hash outside the source tree. The helper's `doctor` invokes the CLI
+directly, so provide the explicitly selected instance's `DOKPLOY_URL` and
+`DOKPLOY_API_KEY` in its process environment through the approved credential
+source; never print them or substitute another instance. Do not use a mutating
+command as an installation smoke test. After installing, verify the intended
+alias with `python3 "$SKILL_DIR/scripts/dokploy_instance.py" run ALIAS -- --json doctor`.
+
+`uv tool dir --bin` must be an absolute PATH entry. Python downloads are disabled;
+set `UV_PYTHON` to an existing compatible interpreter if selection fails. Local
+installation state belongs in ignored `.cli-generate-installation.json`, never
+in versioned `.cli-generate.json`. These files describe the development install,
+not instance credentials, sessions or targets. A blocked state needs inspection,
+not an automatic retry or takeover. Installing the CLI never registers its
+packaged usage skill globally and does not replace this management skill.
+
 ## SSH setup
 
 Keep SSH addresses, ports, users, identity files and bastions in ~/.ssh/config:

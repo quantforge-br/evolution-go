@@ -13,10 +13,12 @@ allowed-tools: Bash(dokploy-cli:*), Bash(python3:*), Bash(which:*)
 
 # Dokploy management
 
-`dokploy-cli` is a stateless CLI over a **live** Dokploy server: every command is a
-real call to `<url>/api/<router>.<procedure>` with the `x-api-key` header. Nothing
-is stored locally except an optional endpoint-spec cache; there are no sessions,
-targets or local undo.
+`dokploy-cli` is a stateless CLI over a **live** Dokploy server. Backend operations
+call `<url>/api/<router>.<procedure>` with the `x-api-key` header; help, version,
+registry inspection and `--dry-run` are offline. Nothing is stored locally except
+an optional endpoint-spec cache; there are no sessions, targets or local undo.
+For ownership-checked installation/update instructions, read
+[references/multi-instance.md](references/multi-instance.md#cli-installation-and-updates).
 
 ## Choose an instance before operating
 
@@ -59,13 +61,16 @@ only an `[instance ALIAS] URL` banner on stderr.
 | Exit | Meaning | error.code |
 |---|---|---|
 | 0 | success | |
-| 1 | API, network or deployment failure | `not_found`, `bad_request`, `unauthorized`, `forbidden`, `unreachable`, `deployment_failed`, `timeout`, `doctor_failed` |
+| 1 | API, network, deployment or output failure | `not_found`, `bad_request`, `unauthorized`, `forbidden`, `unreachable`, `deployment_failed`, `timeout`, `doctor_failed`, `serialization_error` |
 | 2 | usage/validation or missing `--yes`; also helper config errors | `usage_error`, `bad_input`, `confirmation_required`, `unsupported` |
 | 3 | URL/key not configured | `not_configured` |
 
 Password/token/secret/apiKey/privateKey fields are masked as `"***"`; add
 `--show-secrets` only when the user needs the value. GET retries twice on 5xx or
 network errors; POST is never retried.
+`serialization_error` returns a safe error without the invalid payload or a
+traceback. It does not prove a write failed: inspect the selected instance's
+state before retrying a mutation.
 
 ## Inspect
 
@@ -145,7 +150,7 @@ dokploy-cli --json api call postgres.changePassword -p postgresId=DB_ID -p passw
 ### Environment variables
 
 `env` is one `KEY=value` newline-separated string and every save **replaces** it.
-Read the current value first (`service show TYPE ID --show-secrets`, field `env`),
+Read the current value first (`--show-secrets service show TYPE ID`, field `env`),
 edit it, then write it back:
 
 ```bash
@@ -216,6 +221,7 @@ dokploy-cli --json api call deployment.queueList
 | `not_found ... Server not found` | `serverId` is not registered on this instance |
 | deploy ends `deployment_failed` | `deployment logs <id> --tail 200`; `Github Provider not found` means the compose lacks `sourceType=raw`; `all predefined address pools have been exhausted` is a Docker network shortage on the host |
 | `doctor_failed` with `unauthorized` | Wrong or revoked key for that alias |
+| `serialization_error` | Invalid command output; inspect server state before retrying writes, then report a CLI bug without including secrets |
 
 ## Verification
 

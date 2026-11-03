@@ -21,6 +21,15 @@ injects `DOKPLOY_URL`/`DOKPLOY_API_KEY` into the child process, and runs
 Keep `~/dev/dokploy/.agents/skills/dokploy-management` and
 `~/dev/skills/dokploy-management` byte-identical.
 
+## CLI compatibility and maintenance
+
+Use the ownership-checked update/recovery flow in
+`references/multi-instance.md#cli-installation-and-updates`. The CLI now derives
+its version from distribution metadata and reports malformed output with exit 1
+and `serialization_error`; the helper preserves that envelope and exit code.
+Root options such as `--show-secrets` precede the CLI subcommand. Updates do not
+change the alias registry or credentials and do not install usage skills globally.
+
 ## Changelog
 
 ### 2026-11-02: switched from `cli-anything-dokploy` to `dokploy-cli`
@@ -38,3 +47,15 @@ Keep `~/dev/dokploy/.agents/skills/dokploy-management` and
 - Validated on 2026-11-02 against home-server, quantforge and quantmind (all v0.30.10):
   `doctor`, `service list`, `project list`, `docker.getContainers`,
   `dockerVolume.getVolumes`, `domain.create --dry-run`, `--url` rejection.
+
+## Post-review compatibility verification
+
+~~~text
+$ PYTHONDONTWRITEBYTECODE=1 python3 -B -m unittest discover -s tests -v
+Ran 14 tests
+OK
+~~~
+
+These checks use synthetic credentials only. The real installed CLI is exercised
+through each alias with a request-free dry run, including global --json and
+--show-secrets options. No live writes or SSH commands are part of this update.

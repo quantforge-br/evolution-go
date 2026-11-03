@@ -270,6 +270,20 @@ class InstanceTests(unittest.TestCase):
         )
 
     @unittest.skipUnless(REAL_CLI, "dokploy-cli is not installed")
+    def test_actual_cli_accepts_documented_root_options_without_network(self):
+        result = subprocess.run(
+            [
+                sys.executable, str(SCRIPT), "--config", str(self.config),
+                "run", "home-server", "--", "--json", "--show-secrets",
+                "api", "call", "project.create", "-p", "name=preview", "--dry-run",
+            ],
+            check=False, capture_output=True, text=True, timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(json.loads(result.stdout)["ok"])
+        self.assertNotIn("secret", result.stdout + result.stderr)
+
+    @unittest.skipUnless(REAL_CLI, "dokploy-cli is not installed")
     def test_actual_cli_receives_instance_url_without_network(self):
         # --dry-run validates against the bundled registry and sends nothing.
         for alias in self.instances:
