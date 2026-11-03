@@ -40,7 +40,7 @@ commands, or committed files. A secure file is the simple default. For example,
 have the operator enter a key locally without placing it in shell history:
 
 ~~~bash
-python3 - "$CONFIG_DIR/secrets/home-server.key" <<'PY'
+python3 - "$CONFIG_DIR/secrets/diogosrodrigues.key" <<'PY'
 import getpass
 import os
 import sys
@@ -102,10 +102,10 @@ packaged usage skill globally and does not replace this management skill.
 Keep SSH addresses, ports, users, identity files and bastions in ~/.ssh/config:
 
 ~~~sshconfig
-Host home-server
+Host diogosrodrigues
     HostName 203.0.113.10
     User deploy
-    IdentityFile ~/.ssh/home-server
+    IdentityFile ~/.ssh/diogosrodrigues
     IdentitiesOnly yes
 ~~~
 
@@ -120,7 +120,7 @@ SSH targets the configured Dokploy host, not a service's remote Docker node.
 ~~~bash
 python3 "$SKILL_DIR/scripts/dokploy_instance.py" list
 python3 "$SKILL_DIR/scripts/dokploy_instance.py" list --json
-python3 "$SKILL_DIR/scripts/dokploy_instance.py" run home-server -- --json service list
+python3 "$SKILL_DIR/scripts/dokploy_instance.py" run diogosrodrigues -- --json service list
 python3 "$SKILL_DIR/scripts/dokploy_instance.py" run quantforge -- --json deployment list compose COMPOSE_ID
 python3 "$SKILL_DIR/scripts/dokploy_instance.py" ssh quantmind -- docker ps
 ~~~

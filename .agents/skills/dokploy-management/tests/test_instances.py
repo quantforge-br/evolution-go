@@ -43,13 +43,13 @@ class InstanceTests(unittest.TestCase):
         )
         self.environment.start()
         self.addCleanup(self.environment.stop)
-        self.key = self.root / "secrets" / "home-server.key"
+        self.key = self.root / "secrets" / "diogosrodrigues.key"
         self.key.parent.mkdir(mode=0o700)
         self.key.write_text("home-secret\n")
         self.key.chmod(0o600)
         self.config.write_text(
-            '[instances.home-server]\nurl = "https://home.example.com/"\n'
-            'ssh_host = "home-server"\napi_key_file = "secrets/home-server.key"\n\n'
+            '[instances.diogosrodrigues]\nurl = "https://home.example.com/"\n'
+            'ssh_host = "diogosrodrigues"\napi_key_file = "secrets/diogosrodrigues.key"\n\n'
             '[instances.quantforge]\nurl = "https://forge.example.com"\n'
             'ssh_host = "quantforge"\napi_key_env = "FORGE_KEY"\n\n'
             '[instances.quantmind]\nurl = "https://mind.example.com"\n'
@@ -65,12 +65,12 @@ class InstanceTests(unittest.TestCase):
 
     def test_loads_three_aliases_and_relative_credential_reference(self):
         self.assertEqual(
-            set(self.instances), {"home-server", "quantforge", "quantmind"}
+            set(self.instances), {"diogosrodrigues", "quantforge", "quantmind"}
         )
-        self.assertEqual(self.instances["home-server"].url, "https://home.example.com")
-        self.assertEqual(self.instances["home-server"].api_key_file, self.key)
+        self.assertEqual(self.instances["diogosrodrigues"].url, "https://home.example.com")
+        self.assertEqual(self.instances["diogosrodrigues"].api_key_file, self.key)
         self.assertEqual(
-            helper.read_api_key(self.instances["home-server"]), "home-secret"
+            helper.read_api_key(self.instances["diogosrodrigues"]), "home-secret"
         )
 
     def test_listing_reads_no_secrets(self):
@@ -85,7 +85,7 @@ class InstanceTests(unittest.TestCase):
         self.assertEqual(err, "")
         rows = json.loads(out)["data"]
         self.assertEqual(
-            [row["alias"] for row in rows], ["home-server", "quantforge", "quantmind"]
+            [row["alias"] for row in rows], ["diogosrodrigues", "quantforge", "quantmind"]
         )
         self.assertNotIn("secret", out)
         self.assertNotIn(str(self.key), out)
@@ -113,11 +113,11 @@ class InstanceTests(unittest.TestCase):
             ) as child,
         ):
             code, out, err = self.invoke(
-                "run", "home-server", "--", "--json", "service", "list"
+                "run", "diogosrodrigues", "--", "--json", "service", "list"
             )
         self.assertEqual(code, 17)
         self.assertEqual(out, "")
-        self.assertIn("[instance home-server]", err)
+        self.assertIn("[instance diogosrodrigues]", err)
         self.assertNotIn("secret", err)
         argv = child.call_args.args[0]
         env = child.call_args.kwargs["env"]
@@ -140,16 +140,16 @@ class InstanceTests(unittest.TestCase):
                 self.subTest(mode=mode),
                 self.assertRaisesRegex(helper.ConfigError, "mode 600"),
             ):
-                helper.read_api_key(self.instances["home-server"])
+                helper.read_api_key(self.instances["diogosrodrigues"])
         self.key.chmod(0o600)
         for value in ("", " \n", "two words", "line\nbreak", "key\x00suffix"):
             self.key.write_text(value)
             with self.subTest(value=value), self.assertRaises(helper.ConfigError):
-                helper.read_api_key(self.instances["home-server"])
+                helper.read_api_key(self.instances["diogosrodrigues"])
         self.key.write_text("home-secret\n")
         self.key.chmod(0o400)
         self.assertEqual(
-            helper.read_api_key(self.instances["home-server"]), "home-secret"
+            helper.read_api_key(self.instances["diogosrodrigues"]), "home-secret"
         )
 
     def test_missing_env_key_does_not_fall_back_to_legacy_key(self):
@@ -216,11 +216,11 @@ class InstanceTests(unittest.TestCase):
             ) as child,
         ):
             code, out, err = self.invoke(
-                "ssh", "home-server", "--", "printf", "%s", "a; touch /tmp/no"
+                "ssh", "diogosrodrigues", "--", "printf", "%s", "a; touch /tmp/no"
             )
         self.assertEqual(code, 23)
         self.assertEqual(out, "")
-        self.assertIn("SSH home-server", err)
+        self.assertIn("SSH diogosrodrigues", err)
         self.assertEqual(
             child.call_args.args[0],
             [
@@ -230,7 +230,7 @@ class InstanceTests(unittest.TestCase):
                 "-o",
                 "StrictHostKeyChecking=yes",
                 "--",
-                "home-server",
+                "diogosrodrigues",
                 "printf %s 'a; touch /tmp/no'",
             ],
         )
@@ -245,10 +245,10 @@ class InstanceTests(unittest.TestCase):
     def test_ssh_requires_explicit_command_and_host(self):
         instances = self.instances
         with self.assertRaises(helper.ConfigError):
-            helper.run_ssh(instances["home-server"], instances, [])
+            helper.run_ssh(instances["diogosrodrigues"], instances, [])
         with self.assertRaises(helper.ConfigError):
             helper.run_ssh(
-                replace(instances["home-server"], ssh_host=None), instances, ["true"]
+                replace(instances["diogosrodrigues"], ssh_host=None), instances, ["true"]
             )
 
     def test_signal_exit_code_is_preserved_as_shell_status(self):
@@ -274,7 +274,7 @@ class InstanceTests(unittest.TestCase):
         result = subprocess.run(
             [
                 sys.executable, str(SCRIPT), "--config", str(self.config),
-                "run", "home-server", "--", "--json", "--show-secrets",
+                "run", "diogosrodrigues", "--", "--json", "--show-secrets",
                 "api", "call", "project.create", "-p", "name=preview", "--dry-run",
             ],
             check=False, capture_output=True, text=True, timeout=30,

@@ -3,11 +3,11 @@
   "skills": {
     "dokploy-management": {
       "canonicalPath": "dokploy-management",
-      "baseCommit": "c06eaecf4ba5611295258a80b3a3190393923a4f",
-      "baseTree": "87b9a879178d0f0762768d8d3cf3e9e464cea300",
-      "baseTreeHash": "1dc7e98ead8564de708653462b9a6825ccd7f030f36eb40bdd2a8abf804d34b1",
-      "dirHash": "6ed7d8ce60f995c8fe8b5e2afdbee89181c8068075254c5388cfe040359b664a",
-      "syncedAt": "2026-11-03T00:30:18.978169904Z"
+      "baseCommit": "c093653f6d5097e87314189bd865b3233c8e3f8b",
+      "baseTree": "71ee83786c98ec391e329f85890a1dfa4dc54f04",
+      "baseTreeHash": "3a048d98c509847a833c711a5483fa65b2b3b710c8e8dd01134e33dac792429f",
+      "dirHash": "88714f65ac3ad99865ce0234984a677ea94eb12df538b1ff21220b2a7df96367",
+      "syncedAt": "2026-11-03T12:56:23.665010552Z"
     },
     "evolutiongo-integration": {
       "canonicalPath": "evolutiongo-integration",

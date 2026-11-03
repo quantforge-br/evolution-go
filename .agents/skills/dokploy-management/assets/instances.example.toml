@@ -1,7 +1,7 @@
-[instances.home-server]
+[instances.diogosrodrigues]
 url = "https://dokploy.home.example.com"
-ssh_host = "home-server"
-api_key_file = "secrets/home-server.key"
+ssh_host = "diogosrodrigues"
+api_key_file = "secrets/diogosrodrigues.key"
 
 [instances.quantforge]
 url = "https://dokploy.forge.example.com"

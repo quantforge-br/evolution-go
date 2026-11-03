@@ -31,7 +31,7 @@ SKILL.md, not the caller's working directory. Setup, credentials and SSH:
 ~~~bash
 H="$SKILL_DIR/scripts/dokploy_instance.py"
 python3 "$H" list --json                         # aliases, URLs, ssh hosts; reads no keys
-python3 "$H" run home-server -- --json doctor    # health, auth, server version, spec drift
+python3 "$H" run diogosrodrigues -- --json doctor    # health, auth, server version, spec drift
 python3 "$H" run quantforge -- --json service list
 python3 "$H" ssh quantmind -- docker ps
 ~~~
