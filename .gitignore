@@ -7,3 +7,7 @@ coverage.*
 .idea/
 .vscode/
 .DS_Store
+# Private self-hosting deployment secrets
+.env.private
+# Build executables locally; do not restore the upstream prebuilt binary.
+/evolution-go

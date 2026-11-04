@@ -1,3 +1,6 @@
+# Modified for private self-hosting: keep local secrets out of the build context.
+.env*
+
 # Git
 .git
 .gitignore
@@ -19,6 +22,7 @@ logs/
 Thumbs.db
 
 # Build artifacts
+evolution-go
 server
 build/
 
