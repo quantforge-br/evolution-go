@@ -2049,6 +2049,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/message/buttonreply": {
+            "post": {
+                "description": "Sends the native reply to a tapped button or list row. type is the format of the answered message: buttons, template, interactive (native flow quick_reply) or list. participant is the answered message's sender and is required in groups.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Message"
+                ],
+                "summary": "Reply to a button or list message",
+                "parameters": [
+                    {
+                        "description": "Button reply",
+                        "name": "message",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_evolution-foundation_evolution-go_pkg_message_service.ButtonReplyStruct"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success",
+                        "schema": {
+                            "$ref": "#/definitions/gin.H"
+                        }
+                    },
+                    "400": {
+                        "description": "Error on validation",
+                        "schema": {
+                            "$ref": "#/definitions/gin.H"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/gin.H"
+                        }
+                    }
+                }
+            }
+        },
         "/message/delete": {
             "post": {
                 "description": "Delete a message for everyone",
@@ -2300,6 +2346,52 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/github_com_evolution-foundation_evolution-go_pkg_message_service.ChatPresenceStruct"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success",
+                        "schema": {
+                            "$ref": "#/definitions/gin.H"
+                        }
+                    },
+                    "400": {
+                        "description": "Error on validation",
+                        "schema": {
+                            "$ref": "#/definitions/gin.H"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/gin.H"
+                        }
+                    }
+                }
+            }
+        },
+        "/message/pollvote": {
+            "post": {
+                "description": "Vote on a poll with option names; an empty list withdraws the vote. The vote is also recorded for /polls/{pollMessageId}/results.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Message"
+                ],
+                "summary": "Vote on a poll",
+                "parameters": [
+                    {
+                        "description": "Poll vote",
+                        "name": "message",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/github_com_evolution-foundation_evolution-go_pkg_message_service.PollVoteStruct"
                         }
                     }
                 ],
@@ -4414,6 +4506,35 @@ const docTemplate = `{
                 }
             }
         },
+        "github_com_evolution-foundation_evolution-go_pkg_message_service.ButtonReplyStruct": {
+            "type": "object",
+            "properties": {
+                "buttonId": {
+                    "type": "string"
+                },
+                "displayText": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "index": {
+                    "type": "integer"
+                },
+                "number": {
+                    "type": "string"
+                },
+                "participant": {
+                    "type": "string"
+                },
+                "quotedText": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
         "github_com_evolution-foundation_evolution-go_pkg_message_service.ChatPresenceStruct": {
             "type": "object",
             "properties": {
@@ -4497,6 +4618,29 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "messageId": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_evolution-foundation_evolution-go_pkg_message_service.PollVoteStruct": {
+            "type": "object",
+            "properties": {
+                "fromMe": {
+                    "type": "boolean"
+                },
+                "number": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "participant": {
+                    "type": "string"
+                },
+                "pollId": {
                     "type": "string"
                 }
             }

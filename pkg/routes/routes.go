@@ -149,6 +149,8 @@ func (r *Routes) AssignRoutes(eng *gin.Engine) {
 		routes.Use(r.authMiddleware.Auth)
 		{
 			routes.POST("/react", r.jidValidationMiddleware.ValidateJIDFields("number"), r.messageHandler.React)
+			routes.POST("/pollvote", r.jidValidationMiddleware.ValidateNumberField(), r.messageHandler.PollVote)
+			routes.POST("/buttonreply", r.jidValidationMiddleware.ValidateNumberField(), r.messageHandler.ButtonReply)
 			routes.POST("/presence", r.jidValidationMiddleware.ValidateNumberField(), r.messageHandler.ChatPresence)
 			routes.POST("/markread", r.jidValidationMiddleware.ValidateNumberField(), r.messageHandler.MarkRead)
 			routes.POST("/markplayed", r.jidValidationMiddleware.ValidateNumberField(), r.messageHandler.MarkPlayed)

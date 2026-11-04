@@ -25,6 +25,8 @@ import (
 
 type MessageService interface {
 	React(data *ReactStruct, instance *instance_model.Instance) (*MessageSendStruct, error)
+	PollVote(data *PollVoteStruct, instance *instance_model.Instance) (*MessageSendStruct, error)
+	ButtonReply(data *ButtonReplyStruct, instance *instance_model.Instance) (*MessageSendStruct, error)
 	ChatPresence(data *ChatPresenceStruct, instance *instance_model.Instance) (string, error)
 	MarkRead(data *MarkReadStruct, instance *instance_model.Instance) (string, error)
 	MarkPlayed(data *MarkPlayedStruct, instance *instance_model.Instance) (string, error)

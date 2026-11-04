@@ -232,6 +232,25 @@ definitions:
       messageId:
         type: string
     type: object
+  github_com_evolution-foundation_evolution-go_pkg_message_service.ButtonReplyStruct:
+    properties:
+      buttonId:
+        type: string
+      displayText:
+        type: string
+      id:
+        type: string
+      index:
+        type: integer
+      number:
+        type: string
+      participant:
+        type: string
+      quotedText:
+        type: string
+      type:
+        type: string
+    type: object
   github_com_evolution-foundation_evolution-go_pkg_message_service.ChatPresenceStruct:
     properties:
       delay:
@@ -289,6 +308,21 @@ definitions:
       chat:
         type: string
       messageId:
+        type: string
+    type: object
+  github_com_evolution-foundation_evolution-go_pkg_message_service.PollVoteStruct:
+    properties:
+      fromMe:
+        type: boolean
+      number:
+        type: string
+      options:
+        items:
+          type: string
+        type: array
+      participant:
+        type: string
+      pollId:
         type: string
     type: object
   github_com_evolution-foundation_evolution-go_pkg_message_service.ReactStruct:
@@ -8513,6 +8547,39 @@ paths:
       summary: Add label to message
       tags:
       - Label
+  /message/buttonreply:
+    post:
+      consumes:
+      - application/json
+      description: 'Sends the native reply to a tapped button or list row. type is
+        the format of the answered message: buttons, template, interactive (native
+        flow quick_reply) or list. participant is the answered message''s sender and
+        is required in groups.'
+      parameters:
+      - description: Button reply
+        in: body
+        name: message
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_evolution-foundation_evolution-go_pkg_message_service.ButtonReplyStruct'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success
+          schema:
+            $ref: '#/definitions/gin.H'
+        "400":
+          description: Error on validation
+          schema:
+            $ref: '#/definitions/gin.H'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/gin.H'
+      summary: Reply to a button or list message
+      tags:
+      - Message
   /message/delete:
     post:
       consumes:
@@ -8692,6 +8759,37 @@ paths:
           schema:
             $ref: '#/definitions/gin.H'
       summary: Set chat presence
+      tags:
+      - Message
+  /message/pollvote:
+    post:
+      consumes:
+      - application/json
+      description: Vote on a poll with option names; an empty list withdraws the
+        vote. The vote is also recorded for /polls/{pollMessageId}/results.
+      parameters:
+      - description: Poll vote
+        in: body
+        name: message
+        required: true
+        schema:
+          $ref: '#/definitions/github_com_evolution-foundation_evolution-go_pkg_message_service.PollVoteStruct'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: success
+          schema:
+            $ref: '#/definitions/gin.H'
+        "400":
+          description: Error on validation
+          schema:
+            $ref: '#/definitions/gin.H'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/gin.H'
+      summary: Vote on a poll
       tags:
       - Message
   /message/react:

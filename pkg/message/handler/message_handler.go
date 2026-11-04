@@ -10,6 +10,8 @@ import (
 
 type MessageHandler interface {
 	React(ctx *gin.Context)
+	PollVote(ctx *gin.Context)
+	ButtonReply(ctx *gin.Context)
 	ChatPresence(ctx *gin.Context)
 	MarkRead(ctx *gin.Context)
 	MarkPlayed(ctx *gin.Context)
@@ -61,6 +63,80 @@ func (m *messageHandler) React(ctx *gin.Context) {
 	}
 
 	message, err := m.messageService.React(data, instance)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "success", "data": message})
+}
+
+// PollVote votes on a poll
+// @Summary Vote on a poll
+// @Description Vote on a poll with option names; an empty list withdraws the vote. The vote is also recorded for /polls/{pollMessageId}/results.
+// @Tags Message
+// @Accept json
+// @Produce json
+// @Param message body message_service.PollVoteStruct true "Poll vote"
+// @Success 200 {object} gin.H "success"
+// @Failure 400 {object} gin.H "Error on validation"
+// @Failure 500 {object} gin.H "Internal server error"
+// @Router /message/pollvote [post]
+func (m *messageHandler) PollVote(ctx *gin.Context) {
+	instance, ok := ctx.MustGet("instance").(*instance_model.Instance)
+	if !ok {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "instance not found"})
+		return
+	}
+
+	var data *message_service.PollVoteStruct
+	if err := ctx.ShouldBindBodyWithJSON(&data); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if data.Number == "" || data.PollId == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "number and pollId are required"})
+		return
+	}
+
+	message, err := m.messageService.PollVote(data, instance)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"message": "success", "data": message})
+}
+
+// ButtonReply answers a message with reply buttons, a template or a list
+// @Summary Reply to a button or list message
+// @Description Sends the native reply to a tapped button or list row. type is the format of the answered message: buttons, template, interactive (native flow quick_reply) or list. participant is the answered message's sender and is required in groups.
+// @Tags Message
+// @Accept json
+// @Produce json
+// @Param message body message_service.ButtonReplyStruct true "Button reply"
+// @Success 200 {object} gin.H "success"
+// @Failure 400 {object} gin.H "Error on validation"
+// @Failure 500 {object} gin.H "Internal server error"
+// @Router /message/buttonreply [post]
+func (m *messageHandler) ButtonReply(ctx *gin.Context) {
+	instance, ok := ctx.MustGet("instance").(*instance_model.Instance)
+	if !ok {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "instance not found"})
+		return
+	}
+
+	var data *message_service.ButtonReplyStruct
+	if err := ctx.ShouldBindBodyWithJSON(&data); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if data.Number == "" || data.Id == "" || data.ButtonId == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "number, id and buttonId are required"})
+		return
+	}
+
+	message, err := m.messageService.ButtonReply(data, instance)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
