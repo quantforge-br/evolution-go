@@ -86,6 +86,20 @@ EVOLUTION_IMAGE in the Dokploy environment, and deploy the Compose service.
 The application image uses pull_policy=never: do not prune its tagged image
 from home-server before redeploying. Never replace it with an upstream image.
 
+All private changes are committed on the local private branch; it is the
+only source for these images. Build them with scripts/build-private-image.sh:
+it refuses to run on another branch or with uncommitted tracked changes, uses
+git archive HEAD as the build context (so untracked files and .env files never
+reach the image), labels the image with the source commit and can stream it
+to the host:
+
+    scripts/build-private-image.sh --dry-run private-<tag>
+    scripts/build-private-image.sh --load diogosrodrigues private-<tag>
+
+Then set EVOLUTION_IMAGE, redeploy and call POST /instance/connect, since the
+server does not resume the WhatsApp session by itself. To roll back, set
+EVOLUTION_IMAGE back to the previous tag, which stays loaded on the host.
+
 ## Local binary
 
 The upstream prebuilt ./evolution-go has been removed because it still contains
