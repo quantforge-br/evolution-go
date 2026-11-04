@@ -1,3 +1,4 @@
+<!-- Modified for private self-hosting: document the local runtime and privacy defaults. -->
 <p align="center">
   <a href="https://evolutionfoundation.com.br">
     <img src="./public/hover-evolution.png" alt="Evolution Foundation" />
@@ -25,6 +26,7 @@
   <a href="mailto:suporte@evofoundation.com.br">Support</a>
 </p>
 
+> **Local private build:** remote licensing and telemetry have been removed from this checkout. This build uses Evolution Go; original license, notices and frontend branding are retained. See [Private self-hosting](./SELF_HOSTING.md) for the deployment entry point and network boundaries. The upstream prebuilt binary was removed; do not restore it or use upstream container images.
 
 ---
 
@@ -46,7 +48,7 @@ Evolution Go is one of the messaging engines maintained by Evolution Foundation.
 - **Media support** — images, videos, audio, documents with MinIO/S3 storage
 - **Message storage** — optional PostgreSQL persistence
 - **QR code pairing** — built-in QR code generation for device linking
-- **License management** — built-in licensing with registration, activation, and heartbeat
+- **Private runtime** — no remote registration, activation, heartbeat or telemetry
 - **Docker ready** — production-ready Docker configuration
 
 ---
@@ -55,18 +57,18 @@ Evolution Go is one of the messaging engines maintained by Evolution Foundation.
 
 ### Docker (recommended)
 
+Run from this modified checkout, not a fresh clone of the upstream project.
+
 ```bash
-git clone https://github.com/evolution-foundation/evolution-go.git
-cd evolution-go
-make docker-build
-make docker-run
+cd /path/to/this/checkout
+./scripts/setup-private.sh
+docker compose --env-file .env.private -f compose.private.yml up -d --build
 ```
 
 ### Local development
 
 ```bash
-git clone https://github.com/evolution-foundation/evolution-go.git
-cd evolution-go
+cd /path/to/this/checkout
 
 # Setup, configure and run
 make setup
@@ -96,8 +98,8 @@ POSTGRES_USERS_DB=postgresql://postgres:password@localhost:5432/evogo_users?sslm
 DATABASE_SAVE_MESSAGES=false
 
 # Logging
-WADEBUG=DEBUG
-LOGTYPE=console
+DEBUG_ENABLED=0
+LOG_TYPE=console
 
 # Optional
 # AMQP_URL=amqp://guest:guest@localhost:5672/
@@ -119,17 +121,14 @@ LOGTYPE=console
 
 ---
 
-## License Activation
+## Local runtime
 
-Evolution Go requires a license to operate. On first run:
+This modified build starts without contacting a licensing service. The bundled
+Manager uses local compatibility endpoints; API authentication is still required.
+No email, registration or first-time online activation is needed.
 
-1. Start the server — API endpoints return `503` until activated
-2. Open the **Manager** at `http://localhost:8080/manager/login`
-3. Enter your API URL and `GLOBAL_API_KEY`
-4. Complete the license registration flow
-5. Once activated, the API is fully operational
-
-The license status persists in the database (`runtime_configs` table). Heartbeats are sent periodically to maintain activation.
+Use [SELF_HOSTING.md](./SELF_HOSTING.md) and compose.private.yml to deploy this
+source tree. The original LICENSE and NOTICE still apply.
 
 ---
 
@@ -160,7 +159,8 @@ http://localhost:8080/swagger/index.html
 evolution-go/
 ├── cmd/evolution-go/     # Application entry point
 ├── pkg/
-│   ├── core/            # License management & middleware
+│   ├── core/            # Local Manager compatibility endpoints
+│   ├── privacy/         # Local-only application HTTP integrations
 │   ├── instance/        # Instance management
 │   ├── message/         # Message handling
 │   ├── sendMessage/     # Message sending
@@ -217,7 +217,7 @@ Deploy Evolution Go with optimized infrastructure through our HostGator partners
 
 ## Telemetry
 
-Evolution Go collects anonymous telemetry data (routes used, API version) to help improve the service. **No sensitive or personal data is collected.**
+This modified build sends no Evolution telemetry or licensing requests. Application HTTP integrations are loopback-only unless explicitly allowlisted; WhatsApp connections remain necessary. See [SELF_HOSTING.md](./SELF_HOSTING.md) for scope, configuration and verification.
 
 ---
 
@@ -259,3 +259,20 @@ Third-party attributions are documented in [NOTICE](./NOTICE).
 <p align="center">
   Made by <a href="https://evolutionfoundation.com.br">Evolution Foundation</a> · © 2026
 </p>
+
+### Private multi-device history (opt-in)
+
+Set `PRIVATE_CHAT_HISTORY=true` to persist credential-free Message, SendMessage, Receipt and
+HistorySync events in PostgreSQL for offline desktop catch-up. `GET /chat/events?after=ID`
+uses the instance token and scopes every page to that instance and full paired device JID.
+IDs are strings; save the returned `nextCursor` only after persisting the whole page and
+continue while `hasMore` is true. Reads work offline and never start a WhatsApp session.
+This is separate from `DATABASE_SAVE_MESSAGES`, which stores only legacy status metadata.
+The journal contains message content and media descriptors, not downloaded media bytes;
+there is no automatic expiration, so include it in private backups and plan retention.
+
+`POST /chat/history-recover` accepts `{"chat":"JID","messageIds":["KNOWN_ID"]}` for up to
+50 message IDs already associated with the authenticated device and chat. It requests the
+messages only from the account's own primary phone; results arrive asynchronously as Message
+events and enter the journal. It never sends to the contact. The phone must be online and
+still retain the message. Recovery requests are not safe to retry blindly.

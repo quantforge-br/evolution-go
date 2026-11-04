@@ -1,6 +1,9 @@
+# Modified for private self-hosting: disable Go telemetry and preserve license notices.
 FROM golang:1.25.0-alpine AS build
 
 RUN apk update && apk add --no-cache git build-base libjpeg-turbo-dev libwebp-dev
+
+ENV GOTELEMETRY=off
 
 WORKDIR /build
 
@@ -20,13 +23,14 @@ RUN CGO_ENABLED=1 go build -ldflags "-X main.version=${VERSION}" -o server ./cmd
 FROM alpine:3.19.1 AS final
 
 # poppler-utils provides pdftoppm, used to rasterize PDF page 1 for /send/media document thumbnails
-RUN apk update && apk add --no-cache tzdata ffmpeg libjpeg-turbo libwebp poppler-utils
+RUN apk update && apk add --no-cache ca-certificates tzdata ffmpeg libjpeg-turbo libwebp poppler-utils
 
 WORKDIR /app
 
 COPY --from=build /build/server .
 COPY --from=build /build/manager/dist ./manager/dist
 COPY --from=build /build/VERSION ./VERSION
+COPY --from=build /build/LICENSE /build/NOTICE /build/TRADEMARKS.md /build/SELF_HOSTING.md ./
 
 ENV TZ=America/Sao_Paulo
 

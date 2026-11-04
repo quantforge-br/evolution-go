@@ -1,0 +1,82 @@
+# Private self-hosting: build this source tree instead of an upstream image.
+services:
+  evolution-go:
+    build:
+      context: .
+      args:
+        VERSION: local-private
+    image: evolution-go-private:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${SERVER_PORT:-8080}:8080"
+    environment:
+      SERVER_PORT: "8080"
+      GLOBAL_API_KEY: "${GLOBAL_API_KEY:?Run scripts/setup-private.sh first}"
+      POSTGRES_AUTH_DB: "postgresql://evolution:${POSTGRES_PASSWORD:?Run scripts/setup-private.sh first}@postgres:5432/evolution?sslmode=disable"
+      POSTGRES_USERS_DB: "postgresql://evolution:${POSTGRES_PASSWORD:?Run scripts/setup-private.sh first}@postgres:5432/evolution?sslmode=disable"
+      DATABASE_SAVE_MESSAGES: "false"
+      CLIENT_NAME: evolution
+      OS_NAME: Linux
+      GIN_MODE: release
+      DEBUG_ENABLED: "0"
+      LOG_TYPE: console
+      CONNECT_ON_STARTUP: "false"
+      WHATSAPP_AUTO_VERSION: "false"
+      LOCAL_HTTP_ALLOWED_HOSTS: ""
+      WEBHOOK_URL: ""
+      WEBHOOK_FILES: "false"
+      AMQP_URL: ""
+      AMQP_GLOBAL_ENABLED: "false"
+      NATS_URL: ""
+      NATS_GLOBAL_ENABLED: "false"
+      API_AUDIO_CONVERTER: ""
+      API_AUDIO_CONVERTER_KEY: ""
+      MINIO_ENABLED: "false"
+      PROXY_HOST: ""
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      ALL_PROXY: ""
+      LOG_DIRECTORY: /app/logs
+      LOG_MAX_SIZE: "10"
+      LOG_MAX_BACKUPS: "2"
+      LOG_MAX_AGE: "7"
+    volumes:
+      - app_data:/app/dbdata
+      - app_logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internet
+      - database
+    security_opt:
+      - no-new-privileges:true
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Run scripts/setup-private.sh first}"
+      POSTGRES_DB: evolution
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evolution -d evolution"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+    networks:
+      - database
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  app_data:
+  app_logs:
+  postgres_data:
+
+networks:
+  internet:
+  database:
+    internal: true
