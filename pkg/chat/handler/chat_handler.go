@@ -9,6 +9,9 @@ import (
 )
 
 type ChatHandler interface {
+	RecoverMessages(ctx *gin.Context)
+	ChatEvents(ctx *gin.Context)
+	ChatSettings(ctx *gin.Context)
 	ChatPin(ctx *gin.Context)
 	ChatUnpin(ctx *gin.Context)
 	ChatArchive(ctx *gin.Context)
@@ -20,6 +23,30 @@ type ChatHandler interface {
 
 type chatHandler struct {
 	chatService chat_service.ChatService
+}
+
+// ChatSettings returns cached archive state without starting a WhatsApp session.
+// @Summary Get stored chat archive settings
+// @Description Read persisted archive state for the authenticated instance; no WhatsApp writes or reconnects.
+// @Tags Chat
+// @Produce json
+// @Success 200 {object} gin.H
+// @Failure 401 {object} gin.H
+// @Failure 503 {object} gin.H
+// @Router /chat/settings [get]
+func (c *chatHandler) ChatSettings(ctx *gin.Context) {
+	value, exists := ctx.Get("instance")
+	instance, ok := value.(*instance_model.Instance)
+	if !exists || !ok || instance == nil {
+		ctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "not authorized"})
+		return
+	}
+	settings, err := c.chatService.ChatSettings(ctx.Request.Context(), instance)
+	if err != nil {
+		ctx.JSON(http.StatusServiceUnavailable, gin.H{"error": "chat settings storage unavailable"})
+		return
+	}
+	ctx.JSON(http.StatusOK, gin.H{"message": "success", "data": settings})
 }
 
 // Pin a chat

@@ -1,3 +1,4 @@
+// Modified for private self-hosting: optional WhatsApp version fetch is opt-in.
 package config
 
 import (
@@ -44,6 +45,7 @@ type Config struct {
 	MinioUseSSL          bool
 	MinioEnabled         bool
 	MinioRegion          string
+	WhatsAppAutoVersion  bool
 	WhatsappVersionMajor int
 	WhatsappVersionMinor int
 	WhatsappVersionPatch int
@@ -363,6 +365,7 @@ func Load() *Config {
 		PostgresUser:         postgresUser,
 		PostgresPassword:     postgresPassword,
 		PostgresDB:           postgresDB,
+		WhatsAppAutoVersion:  os.Getenv("WHATSAPP_AUTO_VERSION") == "true",
 		WhatsappVersionMajor: major,
 		WhatsappVersionMinor: minor,
 		WhatsappVersionPatch: patch,

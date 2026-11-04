@@ -1,8 +1,11 @@
+// Modified for private self-hosting: send history-sync requests to the account's own JID.
 package chat_service
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"github.com/evolution-foundation/evolution-go/pkg/history"
 	"time"
 
 	instance_model "github.com/evolution-foundation/evolution-go/pkg/instance/model"
@@ -15,6 +18,9 @@ import (
 )
 
 type ChatService interface {
+	RecoverMessages(ctx context.Context, instance *instance_model.Instance, request RecoveryRequest) (int, error)
+	ChatEvents(ctx context.Context, instance *instance_model.Instance, after int64) (history.Page, error)
+	ChatSettings(ctx context.Context, instance *instance_model.Instance) ([]ChatSetting, error)
 	ChatPin(data *BodyStruct, instance *instance_model.Instance) (string, error)
 	ChatUnpin(data *BodyStruct, instance *instance_model.Instance) (string, error)
 	ChatArchive(data *BodyStruct, instance *instance_model.Instance) (string, error)
@@ -25,6 +31,8 @@ type ChatService interface {
 }
 
 type chatService struct {
+	historyStore     *history.Store
+	chatSettingsDB   *sql.DB
 	clientPointer    map[string]*whatsmeow.Client
 	whatsmeowService whatsmeow_service.WhatsmeowService
 	loggerWrapper    *logger_wrapper.LoggerManager
@@ -234,7 +242,14 @@ func (c *chatService) HistorySyncRequest(data *HistorySyncRequestStruct, instanc
 
 	histRequest := client.BuildHistorySyncRequest(&messageInfo, data.Count)
 
-	res, err := client.SendMessage(context.Background(), messageInfo.Chat, histRequest, whatsmeow.SendRequestExtra{Peer: true})
+	// A history request is a peer message for the account's own primary device.
+	// Sending it to the chat JID delivers it to the contact and no history comes back.
+	ownID := client.Store.ID
+	if ownID == nil {
+		return nil, errors.New("instance is not logged in")
+	}
+
+	res, err := client.SendMessage(context.Background(), ownID.ToNonAD(), histRequest, whatsmeow.SendRequestExtra{Peer: true})
 	if err != nil {
 		c.loggerWrapper.GetLogger(instance.Id).LogError("[%s] error history sync request: %v", instance.Id, err)
 		return nil, err
@@ -247,8 +262,16 @@ func NewChatService(
 	clientPointer map[string]*whatsmeow.Client,
 	whatsmeowService whatsmeow_service.WhatsmeowService,
 	loggerWrapper *logger_wrapper.LoggerManager,
+	chatSettingsDB *sql.DB,
+	historyStore ...*history.Store,
 ) ChatService {
+	var journal *history.Store
+	if len(historyStore) > 0 {
+		journal = historyStore[0]
+	}
 	return &chatService{
+		historyStore:     journal,
+		chatSettingsDB:   chatSettingsDB,
 		clientPointer:    clientPointer,
 		whatsmeowService: whatsmeowService,
 		loggerWrapper:    loggerWrapper,

@@ -1,3 +1,4 @@
+// Modified for private self-hosting: do not connect to an implicit NATS server.
 package nats_producer
 
 import (
@@ -20,6 +21,11 @@ func NewNatsProducer(
 	natsGlobalEvents []string,
 	loggerWrapper *logger_wrapper.LoggerManager,
 ) producer_interfaces.Producer {
+	// An empty URL must not fall back to the NATS library default server.
+	if url == "" {
+		return &natsProducer{loggerWrapper: loggerWrapper}
+	}
+
 	conn, err := nats.Connect(url)
 	if err != nil {
 		logger.LogError("Failed to connect to NATS: %v", err)

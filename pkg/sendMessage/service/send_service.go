@@ -1,3 +1,4 @@
+// Modified for private self-hosting: restrict HTTP destinations to trusted hosts.
 package send_service
 
 import (
@@ -24,6 +25,7 @@ import (
 	config "github.com/evolution-foundation/evolution-go/pkg/config"
 	instance_model "github.com/evolution-foundation/evolution-go/pkg/instance/model"
 	logger_wrapper "github.com/evolution-foundation/evolution-go/pkg/logger"
+	"github.com/evolution-foundation/evolution-go/pkg/privacy"
 	"github.com/evolution-foundation/evolution-go/pkg/utils"
 	whatsmeow_service "github.com/evolution-foundation/evolution-go/pkg/whatsmeow/service"
 	"github.com/gabriel-vasile/mimetype"
@@ -656,7 +658,7 @@ func (s *sendService) sendTextWithRetry(data *TextStruct, instance *instance_mod
 }
 
 func fetchLinkMetadata(url string) (string, string, string, error) {
-	resp, err := http.Get(url)
+	resp, err := privacy.Get(url)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -740,7 +742,7 @@ func (s *sendService) sendLinkWithRetry(data *LinkStruct, instance *instance_mod
 
 		var fileData []byte
 		if data.ImgUrl != "" {
-			resp, err := http.Get(data.ImgUrl)
+			resp, err := privacy.Get(data.ImgUrl)
 			if err != nil {
 				if attempt == maxRetries {
 					return nil, err
@@ -838,7 +840,7 @@ func convertAudioWithApi(apiUrl string, apiKey string, convertData ConvertAudio)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("apikey", apiKey)
 
-	client := &http.Client{}
+	client := privacy.NewHTTPClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("erro ao enviar a requisição: %v", err)
@@ -1238,7 +1240,7 @@ func (s *sendService) sendMediaUrlWithRetry(data *MediaStruct, instance *instanc
 
 		s.loggerWrapper.GetLogger(instance.Id).LogInfo("[%s] Iniciando download da URL: %s", instance.Id, data.Url)
 
-		resp, err := http.Get(data.Url)
+		resp, err := privacy.Get(data.Url)
 		if err != nil {
 			return nil, err
 		}
@@ -1581,7 +1583,7 @@ func convertToWebP(imageData string) ([]byte, error) {
 	var img image.Image
 	var err error
 
-	resp, err := http.Get(imageData)
+	resp, err := privacy.Get(imageData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch image from URL: %v", err)
 	}
@@ -1877,7 +1879,7 @@ func (s *sendService) SendButton(data *ButtonStruct, instance *instance_model.In
 
 		// Optional media header (image or video URL).
 		if data.ImageUrl != "" {
-			if resp, err := http.Get(data.ImageUrl); err == nil {
+			if resp, err := privacy.Get(data.ImageUrl); err == nil {
 				fileData, readErr := io.ReadAll(resp.Body)
 				resp.Body.Close()
 				if readErr == nil {
@@ -1898,7 +1900,7 @@ func (s *sendService) SendButton(data *ButtonStruct, instance *instance_model.In
 				}
 			}
 		} else if data.VideoUrl != "" {
-			if resp, err := http.Get(data.VideoUrl); err == nil {
+			if resp, err := privacy.Get(data.VideoUrl); err == nil {
 				fileData, readErr := io.ReadAll(resp.Body)
 				resp.Body.Close()
 				if readErr == nil {
@@ -2945,7 +2947,7 @@ func (s *sendService) SendCarousel(data *CarouselStruct, instance *instance_mode
 
 			if card.Header.ImageUrl != "" {
 				// Download image
-				resp, err := http.Get(card.Header.ImageUrl)
+				resp, err := privacy.Get(card.Header.ImageUrl)
 				if err == nil {
 					defer resp.Body.Close()
 					fileData, err := io.ReadAll(resp.Body)
@@ -2973,7 +2975,7 @@ func (s *sendService) SendCarousel(data *CarouselStruct, instance *instance_mode
 				}
 			} else if card.Header.VideoUrl != "" {
 				// Download and upload video
-				resp, err := http.Get(card.Header.VideoUrl)
+				resp, err := privacy.Get(card.Header.VideoUrl)
 				if err == nil {
 					defer resp.Body.Close()
 					fileData, err := io.ReadAll(resp.Body)
@@ -3195,7 +3197,7 @@ func (s *sendService) SendStatusMediaUrl(data *StatusMediaStruct, instance *inst
 	}
 	req.Header.Set("User-Agent", "Evolution-GO/1.0")
 
-	httpClient := &http.Client{}
+	httpClient := privacy.NewHTTPClient()
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to download file from URL: %v", err)

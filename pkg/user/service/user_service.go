@@ -1,3 +1,4 @@
+// Modified for private self-hosting: restrict HTTP destinations to trusted hosts.
 package user_service
 
 import (
@@ -5,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"time"
 
 	instance_model "github.com/evolution-foundation/evolution-go/pkg/instance/model"
 	logger_wrapper "github.com/evolution-foundation/evolution-go/pkg/logger"
+	"github.com/evolution-foundation/evolution-go/pkg/privacy"
 	"github.com/evolution-foundation/evolution-go/pkg/utils"
 	whatsmeow_service "github.com/evolution-foundation/evolution-go/pkg/whatsmeow/service"
 	"go.mau.fi/whatsmeow"
@@ -493,7 +494,7 @@ func (u *userService) SetProfilePicture(data *SetProfilePictureStruct, instance 
 
 	var filedata []byte
 
-	resp, err := http.Get(data.Image)
+	resp, err := privacy.Get(data.Image)
 	if err != nil {
 		return false, fmt.Errorf("failed to fetch image from URL: %v", err)
 	}

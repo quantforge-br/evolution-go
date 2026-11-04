@@ -1,3 +1,4 @@
+// Modified for private self-hosting: restrict HTTP destinations to trusted hosts.
 package group_service
 
 import (
@@ -5,12 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 	"time"
 
 	instance_model "github.com/evolution-foundation/evolution-go/pkg/instance/model"
 	logger_wrapper "github.com/evolution-foundation/evolution-go/pkg/logger"
+	"github.com/evolution-foundation/evolution-go/pkg/privacy"
 	"github.com/evolution-foundation/evolution-go/pkg/utils"
 	whatsmeow_service "github.com/evolution-foundation/evolution-go/pkg/whatsmeow/service"
 	"github.com/gin-gonic/gin"
@@ -236,7 +237,7 @@ func (g *groupService) SetGroupPhoto(data *SetGroupPhotoStruct, instance *instan
 	var fileData []byte
 
 	if strings.HasPrefix(data.Image, "http://") || strings.HasPrefix(data.Image, "https://") {
-		resp, err := http.Get(data.Image)
+		resp, err := privacy.Get(data.Image)
 		if err != nil {
 			g.loggerWrapper.GetLogger(instance.Id).LogError("[%s] Could not download image from URL", instance.Id)
 			return "", fmt.Errorf("failed to fetch image from URL: %v", err)

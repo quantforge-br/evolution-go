@@ -1,3 +1,4 @@
+// Modified for private self-hosting: restrict HTTP destinations to trusted hosts.
 package webhook_producer
 
 import (
@@ -11,6 +12,7 @@ import (
 
 	producer_interfaces "github.com/evolution-foundation/evolution-go/pkg/events/interfaces"
 	logger_wrapper "github.com/evolution-foundation/evolution-go/pkg/logger"
+	"github.com/evolution-foundation/evolution-go/pkg/privacy"
 )
 
 type webhookProducer struct {
@@ -72,7 +74,7 @@ func (p *webhookProducer) sendWebhook(url string, body []byte, userID string) (e
 
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := privacy.NewHTTPClient()
 	resp, err := client.Do(req)
 	if err != nil {
 		return err, nil, 0

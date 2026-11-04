@@ -162,6 +162,9 @@ func (r *Routes) AssignRoutes(eng *gin.Engine) {
 	{
 		routes.Use(r.authMiddleware.Auth)
 		{
+			routes.GET("/settings", r.chatHandler.ChatSettings)
+			routes.GET("/events", r.chatHandler.ChatEvents)
+			routes.POST("/history-recover", r.chatHandler.RecoverMessages)
 			routes.POST("/pin", r.jidValidationMiddleware.ValidateNumberField(), r.chatHandler.ChatPin)             // TODO: not working
 			routes.POST("/unpin", r.jidValidationMiddleware.ValidateNumberField(), r.chatHandler.ChatUnpin)         // TODO: not working
 			routes.POST("/archive", r.jidValidationMiddleware.ValidateNumberField(), r.chatHandler.ChatArchive)     // TODO: not working

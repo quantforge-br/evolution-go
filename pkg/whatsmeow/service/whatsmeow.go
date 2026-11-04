@@ -1,3 +1,4 @@
+// Modified for private self-hosting: use bundled WhatsApp version unless opted in.
 package whatsmeow_service
 
 import (
@@ -36,6 +37,7 @@ import (
 
 	"github.com/evolution-foundation/evolution-go/pkg/config"
 	producer_interfaces "github.com/evolution-foundation/evolution-go/pkg/events/interfaces"
+	"github.com/evolution-foundation/evolution-go/pkg/history"
 	instance_model "github.com/evolution-foundation/evolution-go/pkg/instance/model"
 	instance_repository "github.com/evolution-foundation/evolution-go/pkg/instance/repository"
 	"github.com/evolution-foundation/evolution-go/pkg/internal/event_types"
@@ -77,6 +79,7 @@ type clientVersion struct {
 }
 
 type whatsmeowService struct {
+	historyStore       *history.Store
 	instanceRepository instance_repository.InstanceRepository
 	authDB             *sql.DB
 	messageRepository  message_repository.MessageRepository
@@ -389,8 +392,8 @@ func (w whatsmeowService) StartClient(cd *ClientData) {
 		if err == nil {
 			store.DeviceProps.Version.Tertiary = proto.Uint32(uint32(version.Patch))
 		}
-	} else {
-		// Try to fetch version from WhatsApp Web
+	} else if w.config.WhatsAppAutoVersion {
+		// Fetch only when explicitly enabled; otherwise use the bundled library defaults.
 		webVersion, err := fetchWhatsAppWebVersion()
 		if err != nil {
 			w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] Failed to fetch WhatsApp Web version: %v", cd.Instance.Id, err)
@@ -401,6 +404,13 @@ func (w whatsmeowService) StartClient(cd *ClientData) {
 			store.DeviceProps.Version.Secondary = proto.Uint32(uint32(version.Minor))
 			store.DeviceProps.Version.Tertiary = proto.Uint32(uint32(version.Patch))
 		}
+	}
+
+	// The client payload advertises store.GetWAVersion(), not DeviceProps.Version,
+	// so a configured or fetched version must also be applied globally; otherwise
+	// WhatsApp rejects the bundled (outdated) revision with a 405 ClientOutdated.
+	if version.Major != 0 && version.Minor != 0 && version.Patch != 0 {
+		store.SetWAVersion(store.WAVersionContainer{uint32(version.Major), uint32(version.Minor), uint32(version.Patch)})
 	}
 
 	// 🔒 FIX: Sempre criar logger, mesmo que WaDebug esteja vazio
@@ -1182,6 +1192,12 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 			return
 		}
 
+		if mycli.WAClient != nil && mycli.WAClient.Store != nil && mycli.WAClient.Store.LIDs != nil {
+			normalizeMessageChat(&evt.Info.MessageSource, mycli.WAClient.Store.LIDs.GetPNForLID)
+		} else {
+			normalizeMessageChat(&evt.Info.MessageSource, nil)
+		}
+
 		// Trata o caso especial onde Sender é @lid e SenderAlt é @s.whatsapp.net
 		// Neste caso, devemos inverter: Sender e Chat devem ser @s.whatsapp.net, SenderAlt deve ser @lid
 		senderStr := evt.Info.Sender.String()
@@ -1199,7 +1215,7 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 			if cleanedWhatsAppJID, err := types.ParseJID(cleanSenderAlt); err == nil {
 				evt.Info.Sender = cleanedWhatsAppJID
 				// Se Chat também é @lid, atualiza para @s.whatsapp.net
-				if strings.Contains(chatStr, "@lid") {
+				if strings.Contains(chatStr, "@lid") && !evt.Info.IsFromMe {
 					evt.Info.Chat = cleanedWhatsAppJID
 				}
 			}
@@ -2107,6 +2123,23 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 }
 
 func (w *whatsmeowService) CallWebhook(instance *instance_model.Instance, queueName string, jsonData []byte) {
+	// Store only the event data, never the credential-bearing transport envelope.
+	if w.historyStore != nil && instance != nil {
+		var event struct {
+			Event string
+			Data  json.RawMessage
+			State json.RawMessage
+		}
+		if json.Unmarshal(jsonData, &event) == nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			err := w.historyStore.Append(ctx, instance.Id, instance.Jid, event.Event, event.Data, event.State)
+			cancel()
+			if err != nil {
+				w.loggerWrapper.GetLogger(instance.Id).LogError("Chat history persistence failed")
+			}
+		}
+	}
+
 	var data map[string]interface{}
 	if err := json.Unmarshal(jsonData, &data); err != nil {
 		return
@@ -2791,6 +2824,7 @@ func (w whatsmeowService) ClearInstanceCache(instanceId string, token string) er
 }
 
 func NewWhatsmeowService(
+	historyStore *history.Store,
 	instanceRepository instance_repository.InstanceRepository,
 	authDB *sql.DB,
 	messageRepository message_repository.MessageRepository,
@@ -2811,6 +2845,7 @@ func NewWhatsmeowService(
 	pollSvc := poll_service.NewPollService(authDB, loggerWrapper)
 
 	return &whatsmeowService{
+		historyStore:       historyStore,
 		instanceRepository: instanceRepository,
 		authDB:             authDB,
 		messageRepository:  messageRepository,
