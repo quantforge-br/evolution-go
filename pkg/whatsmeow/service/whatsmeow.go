@@ -779,7 +779,7 @@ func (mycli *MyClient) handleQRCodes(codes []string) {
 			}
 			queueName := strings.ToLower(fmt.Sprintf("%s.%s", instanceID, "QRCode"))
 			if values, err := json.Marshal(postMap); err == nil {
-				go mycli.service.CallWebhook(mycli.Instance, queueName, values)
+				go mycli.service.CallWebhook(mycli.eventInstance(), queueName, values)
 				if mycli.config.AmqpGlobalEnabled || mycli.config.NatsGlobalEnabled {
 					go mycli.service.SendToGlobalQueues("QRCode", values, instanceID)
 				}
@@ -848,7 +848,7 @@ func (mycli *MyClient) teardownQR(reason string, forceLogout bool) {
 	}
 	queueName := strings.ToLower(fmt.Sprintf("%s.%s", instanceID, "QRTimeout"))
 	if values, err := json.Marshal(postMap); err == nil {
-		go mycli.service.CallWebhook(mycli.Instance, queueName, values)
+		go mycli.service.CallWebhook(mycli.eventInstance(), queueName, values)
 		if mycli.config.AmqpGlobalEnabled || mycli.config.NatsGlobalEnabled {
 			go mycli.service.SendToGlobalQueues("QRTimeout", values, instanceID)
 		}
@@ -861,6 +861,18 @@ func (mycli *MyClient) teardownQR(reason string, forceLogout bool) {
 	if killChan, exists := mycli.killChannel[instanceID]; exists {
 		killChan <- true
 	}
+}
+
+// eventInstance captures the owner from the device that produced the event.
+// PairSuccess updates the repository before the cached instance is refreshed;
+// using that cache loses initial history or assigns it to the previous device.
+// Do not mutate the shared instance while earlier deliveries are in flight.
+func (mycli *MyClient) eventInstance() *instance_model.Instance {
+	instance := *mycli.Instance
+	if mycli.WAClient != nil && mycli.WAClient.Store != nil && mycli.WAClient.Store.ID != nil {
+		instance.Jid = mycli.WAClient.Store.ID.String()
+	}
+	return &instance
 }
 
 func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
@@ -1736,7 +1748,7 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 			buttonClickJSON, err := json.Marshal(buttonClickMap)
 			if err == nil {
 				buttonClickQueue := strings.ToLower(fmt.Sprintf("%s.buttonclick", userID))
-				go mycli.service.CallWebhook(mycli.Instance, buttonClickQueue, buttonClickJSON)
+				go mycli.service.CallWebhook(mycli.eventInstance(), buttonClickQueue, buttonClickJSON)
 				if mycli.config.AmqpGlobalEnabled || mycli.config.NatsGlobalEnabled {
 					go mycli.service.SendToGlobalQueues("ButtonClick", buttonClickJSON, mycli.userID)
 				}
@@ -1904,7 +1916,7 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 			mycli.loggerWrapper.GetLogger(mycli.userID).LogInfo("[%s] ===== DISPATCHING LOGGEDOUT EVENT ===== Queue: %s", mycli.userID, queueName)
 
 			// Enviar para webhook/RabbitMQ
-			go mycli.service.CallWebhook(mycli.Instance, queueName, values)
+			go mycli.service.CallWebhook(mycli.eventInstance(), queueName, values)
 
 			if mycli.config.AmqpGlobalEnabled || mycli.config.NatsGlobalEnabled {
 				mycli.loggerWrapper.GetLogger(mycli.userID).LogInfo("[%s] Sending LoggedOut to global queues - AMQP: %v, NATS: %v", mycli.userID, mycli.config.AmqpGlobalEnabled, mycli.config.NatsGlobalEnabled)
@@ -2111,7 +2123,7 @@ func (mycli *MyClient) myEventHandler(rawEvt interface{}) {
 		dataSize := len(values)
 		mycli.loggerWrapper.GetLogger(mycli.userID).LogInfo("[%s] ===== DISPATCHING WEBHOOK ===== Event: %s, Queue: %s, DataSize: %d bytes", mycli.userID, eventType, queueName, dataSize)
 
-		go mycli.service.CallWebhook(mycli.Instance, queueName, values)
+		go mycli.service.CallWebhook(mycli.eventInstance(), queueName, values)
 
 		if mycli.config.AmqpGlobalEnabled || mycli.config.NatsGlobalEnabled {
 			mycli.loggerWrapper.GetLogger(mycli.userID).LogInfo("[%s] Sending to global queues - Event: %s, AMQP: %v, NATS: %v", mycli.userID, eventType, mycli.config.AmqpGlobalEnabled, mycli.config.NatsGlobalEnabled)

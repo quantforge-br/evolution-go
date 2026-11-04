@@ -267,6 +267,13 @@ HistorySync events in PostgreSQL for offline desktop catch-up. `GET /chat/events
 uses the instance token and scopes every page to that instance and full paired device JID.
 IDs are strings; save the returned `nextCursor` only after persisting the whole page and
 continue while `hasMore` is true. Reads work offline and never start a WhatsApp session.
+Event dispatch snapshots the paired device JID before asynchronous delivery;
+the instance settings cache can still contain an empty or previous JID just
+after pairing. Releases without this fix can reject initial sync chunks with
+`Chat history persistence failed` until the instance settings are refreshed.
+Those rejected chunks are not recoverable through journal replay. Deploy the
+fix before arranging a new, explicitly authorized pairing; the phone decides
+which history it provides.
 This is separate from `DATABASE_SAVE_MESSAGES`, which stores only legacy status metadata.
 The journal contains message content and media descriptors, not downloaded media bytes;
 there is no automatic expiration, so include it in private backups and plan retention.

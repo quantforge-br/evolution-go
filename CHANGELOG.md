@@ -1,5 +1,14 @@
 # Evolution GO - Changelog
 
+## In development
+
+### Fixed
+
+- Private history records initial pairing syncs under the event-producing
+  device JID instead of the stale instance settings. Bootstrap, recent and
+  full history no longer disappear until the next settings refresh, and a
+  previous device cannot receive the new device's history.
+
 ## v0.7.2
 
 **Docker:** `evoapicloud/evolution-go:0.7.2`
