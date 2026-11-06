@@ -8,6 +8,10 @@
   device JID instead of the stale instance settings. Bootstrap, recent and
   full history no longer disappear until the next settings refresh, and a
   previous device cannot receive the new device's history.
+- Logs no longer contain credentials: the access log masks `token` and
+  `apikey` query values (the `/ws` admin key), instance tokens are dropped
+  from cache and instance-update messages and the invalid `/ws` token line,
+  and SQL error/slow-query lines show placeholders instead of values.
 
 ## v0.7.2
 

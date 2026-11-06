@@ -6,8 +6,10 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -210,7 +212,8 @@ func setupRouter(db *gorm.DB, authDB *sql.DB, sqliteDB *sql.DB, config *config.C
 	// NOVO: PollHandler usando PollService já inicializado no whatsmeowService (evita dupla inicialização)
 	pollHandler := poll_handler.NewPollHandler(whatsmeowService.GetPollService(), loggerWrapper)
 
-	r := gin.Default()
+	r := gin.New()
+	r.Use(accessLogger(gin.DefaultWriter), gin.Recovery())
 
 	// CORS middleware — must be before everything else
 	r.Use(func(c *gin.Context) {
@@ -258,7 +261,7 @@ func setupRouter(db *gorm.DB, authDB *sql.DB, sqliteDB *sql.DB, config *config.C
 		instanceId := c.Query("instanceId")
 
 		if token != config.GlobalApiKey {
-			logger.LogError("Token inválido: %s", token)
+			logger.LogError("Invalid websocket token")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Token inválido"})
 			return
 		}
@@ -267,6 +270,57 @@ func setupRouter(db *gorm.DB, authDB *sql.DB, sqliteDB *sql.DB, config *config.C
 	})
 
 	return r
+}
+
+// sensitiveQueryKeys are query parameters that carry credentials: /ws takes
+// the admin key as ?token=.
+var sensitiveQueryKeys = map[string]bool{"token": true, "apikey": true}
+
+// redactQuery masks the values of credential query parameters in a path.
+func redactQuery(path string) string {
+	base, query, found := strings.Cut(path, "?")
+	if !found {
+		return path
+	}
+	pairs := strings.Split(query, "&")
+	for i, pair := range pairs {
+		key, _, hasValue := strings.Cut(pair, "=")
+		name, err := url.QueryUnescape(key)
+		if err != nil {
+			name = key
+		}
+		if hasValue && sensitiveQueryKeys[strings.ToLower(name)] {
+			pairs[i] = key + "=<redacted>"
+		}
+	}
+	return base + "?" + strings.Join(pairs, "&")
+}
+
+// accessLogger is gin's default request logger with credentials masked.
+func accessLogger(out io.Writer) gin.HandlerFunc {
+	return gin.LoggerWithConfig(gin.LoggerConfig{
+		Output: out,
+		Formatter: func(param gin.LogFormatterParams) string {
+			var statusColor, methodColor, resetColor string
+			if param.IsOutputColor() {
+				statusColor = param.StatusCodeColor()
+				methodColor = param.MethodColor()
+				resetColor = param.ResetColor()
+			}
+			if param.Latency > time.Minute {
+				param.Latency = param.Latency.Truncate(time.Second)
+			}
+			return fmt.Sprintf("[GIN] %v |%s %3d %s| %13v | %15s |%s %-7s %s %#v\n%s",
+				param.TimeStamp.Format("2006/01/02 - 15:04:05"),
+				statusColor, param.StatusCode, resetColor,
+				param.Latency,
+				param.ClientIP,
+				methodColor, param.Method, resetColor,
+				redactQuery(param.Path),
+				param.ErrorMessage,
+			)
+		},
+	})
 }
 
 func migrate(db *gorm.DB) {

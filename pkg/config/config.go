@@ -4,6 +4,7 @@ package config
 import (
 	"database/sql"
 	"fmt"
+	stdlog "log"
 	"net/url"
 	"os"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 	"github.com/gomessguii/logger"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 
 	config_env "github.com/evolution-foundation/evolution-go/pkg/config/env"
 )
@@ -156,9 +158,18 @@ func (c *Config) CreateUsersDB() (*gorm.DB, error) {
 		logger.LogWarn("[CONFIG] Auto-setup failed (will try connecting anyway): %v", err)
 	}
 
+	// gorm's default logger, but slow-query and error lines show SQL with
+	// placeholders: lookups such as WHERE token = ? carry instance tokens.
+	sqlLogger := gormlogger.New(stdlog.New(os.Stdout, "\r\n", stdlog.LstdFlags), gormlogger.Config{
+		SlowThreshold:        200 * time.Millisecond,
+		LogLevel:             gormlogger.Warn,
+		Colorful:             true,
+		ParameterizedQueries: true,
+	})
+
 	db, err := gorm.Open(
 		postgres.Open(dbDSN),
-		&gorm.Config{},
+		&gorm.Config{Logger: sqlLogger},
 	)
 	if err != nil {
 		return nil, err

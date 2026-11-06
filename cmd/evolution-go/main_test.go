@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/evolution-foundation/evolution-go/pkg/config"
+	"github.com/gin-gonic/gin"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -142,5 +144,35 @@ func TestChatEventsRouteAuthenticatesAndScopesFullDeviceWithoutQueryOverrides(t 
 	check("a", "-1", http.StatusBadRequest)
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestAccessLogMasksCredentialQueryParameters(t *testing.T) {
+	var logged bytes.Buffer
+	previous := gin.DefaultWriter
+	gin.DefaultWriter = &logged
+	t.Cleanup(func() { gin.DefaultWriter = previous })
+	sqlDB, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	db, err := gorm.Open(postgres.New(postgres.Config{Conn: sqlDB}), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{GlobalApiKey: "admin-key", ClientName: "local-test", LogDirectory: t.TempDir()}
+	router := setupRouter(db, sqlDB, nil, cfg, nil, t.TempDir())
+	for _, target := range []string{"/ws?token=leaked-admin-key&instanceId=inst1", "/server/ok?ApiKey=leaked-instance-token"} {
+		router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, target, nil))
+	}
+	log := logged.String()
+	if strings.Contains(log, "leaked-") {
+		t.Fatalf("access log exposes a credential:\n%s", log)
+	}
+	for _, want := range []string{"/ws?token=<redacted>&instanceId=inst1", "/server/ok?ApiKey=<redacted>"} {
+		if !strings.Contains(log, want) {
+			t.Fatalf("access log lacks %q:\n%s", want, log)
+		}
 	}
 }
