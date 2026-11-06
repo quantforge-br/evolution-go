@@ -11,11 +11,11 @@
     },
     "evolutiongo-integration": {
       "canonicalPath": "evolutiongo-integration",
-      "baseCommit": "bf11b67d66b69ade084b001d786104654e70fe24",
+      "baseCommit": "0b8383b2dd1f8e72e00d87a651f73b4c770c1224",
       "baseTree": "05a7f88bd50f1dac185b0657ceccb8e426cf9b6f",
       "baseTreeHash": "13046b161d8b0e41687e88614af71ea4ec0f56ccec96f4217bfeec393ddc3415",
-      "dirHash": "26a6f58c03b0f958f9ac85e3e037f7cab2ce155b3293f9240a0b140e3bfa0fa8",
-      "syncedAt": "2026-11-02T21:50:06.6100407Z"
+      "dirHash": "7c8e2d06ff0c9b2a703a0783517a917f247fb644eed8a0701ff11cff64f11ca2",
+      "syncedAt": "2026-11-06T16:41:00.770856484Z"
     }
   }
 }
