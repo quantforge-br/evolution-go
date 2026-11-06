@@ -5,6 +5,13 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/evolution-foundation/evolution-go/pkg/config"
+	instance_model "github.com/evolution-foundation/evolution-go/pkg/instance/model"
+	instance_repository "github.com/evolution-foundation/evolution-go/pkg/instance/repository"
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/store"
+	"go.mau.fi/whatsmeow/types"
 )
 
 func TestRetryConnectBacksOffUntilTheDialSucceeds(t *testing.T) {
@@ -53,5 +60,39 @@ func TestRetryConnectStopsOnceTheClientIsReplaced(t *testing.T) {
 	)
 	if connected {
 		t.Fatal("a replaced client reported a usable connection")
+	}
+}
+
+type instancesByClient struct {
+	instance_repository.InstanceRepository
+	instances []*instance_model.Instance
+}
+
+func (r instancesByClient) GetAll(string) ([]*instance_model.Instance, error) {
+	return r.instances, nil
+}
+
+func TestOfflineLinkedSessionsCountsOnlyLinkedDevices(t *testing.T) {
+	device := types.NewADJID("5511", 0, 8)
+	clients := map[string]*whatsmeow.Client{
+		"linked":   {Store: &store.Device{ID: &device}},
+		"pairing":  {Store: &store.Device{}},
+		"no-store": {},
+	}
+	service := whatsmeowService{
+		config:        &config.Config{ClientName: "evolution"},
+		clientPointer: clients,
+		instanceRepository: instancesByClient{instances: []*instance_model.Instance{
+			{Id: "linked"}, {Id: "pairing"}, {Id: "no-store"}, {Id: "not-running"},
+		}},
+	}
+	offline, err := service.OfflineLinkedSessions()
+	if err != nil || offline != 1 {
+		t.Fatalf("offline = %d, %v; want only the linked, disconnected device", offline, err)
+	}
+
+	delete(clients, "linked")
+	if offline, _ := service.OfflineLinkedSessions(); offline != 0 {
+		t.Fatalf("offline = %d without a linked client, want 0", offline)
 	}
 }

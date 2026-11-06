@@ -76,6 +76,7 @@ func (r *Routes) AssignRoutes(eng *gin.Engine) {
 	})
 
 	eng.GET("/server/ok", r.serverHandler.ServerOk)
+	eng.GET("/server/whatsapp", r.serverHandler.WhatsAppOk)
 
 	routes := eng.Group("/instance")
 	{

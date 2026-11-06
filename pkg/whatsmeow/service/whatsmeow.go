@@ -63,6 +63,8 @@ type WhatsmeowService interface {
 	ForceUpdateJid(instanceId string, number string) error
 	UpdateInstanceSettings(instanceId string) error
 	UpdateInstanceAdvancedSettings(instanceId string) error
+	// OfflineLinkedSessions counts running linked clients without a live session.
+	OfflineLinkedSessions() (int, error)
 	GetPollService() poll_service.PollService // NOVO: Acesso ao serviço de polls
 
 	// Passkey (WebAuthn) pairing bridge — read by the public ceremony endpoint,
@@ -643,6 +645,28 @@ func (w whatsmeowService) connectClient(cd *ClientData, client *whatsmeow.Client
 	}
 	w.loggerWrapper.GetLogger(cd.Instance.Id).LogInfo("[%s] Successfully connected without proxy", cd.Instance.Id)
 	return nil
+}
+
+// linkedButOffline reports whether a running client belongs to a linked
+// device (paired, not logged out) but is not connected and logged in.
+func linkedButOffline(client *whatsmeow.Client) bool {
+	return client != nil && client.Store != nil && client.Store.ID != nil && !(client.IsConnected() && client.IsLoggedIn())
+}
+
+// OfflineLinkedSessions counts this server's instances whose running client
+// has a linked device but no live WhatsApp session.
+func (w whatsmeowService) OfflineLinkedSessions() (int, error) {
+	instances, err := w.instanceRepository.GetAll(w.config.ClientName)
+	if err != nil {
+		return 0, err
+	}
+	offline := 0
+	for _, instance := range instances {
+		if linkedButOffline(w.clientPointer[instance.Id]) {
+			offline++
+		}
+	}
+	return offline, nil
 }
 
 func schedulePresenceUpdates(mycli *MyClient) {

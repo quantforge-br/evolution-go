@@ -2,6 +2,11 @@
 
 ## In development
 
+### Added
+
+- `GET /server/whatsapp` answers 503 while a linked device's WhatsApp session
+  is down, so a probe can tell a running process from a live session.
+
 ### Fixed
 
 - Private history records initial pairing syncs under the event-producing
