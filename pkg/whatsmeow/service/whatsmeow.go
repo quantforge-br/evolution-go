@@ -514,70 +514,27 @@ func (w whatsmeowService) StartClient(cd *ClientData) {
 
 	if client.Store.ID != nil {
 		w.loggerWrapper.GetLogger(cd.Instance.Id).LogInfo("[%s] Already logged in with JID: %s", cd.Instance.Id, client.Store.ID.String())
-		err = client.Connect()
-		if err != nil {
-			if strings.Contains(err.Error(), "EOF") {
-				w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] Erro de conexão WebSocket (EOF). Tentando reconectar em 5 segundos...", cd.Instance.Id)
-				time.Sleep(5 * time.Second)
-				err = client.Connect()
-				if err != nil {
-					w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] Falha na segunda tentativa de conexão: %v", cd.Instance.Id, err)
-					return
-				}
-			} else if strings.Contains(err.Error(), "username/password authentication failed") {
-				w.loggerWrapper.GetLogger(cd.Instance.Id).LogWarn("[%s] Proxy authentication failed, attempting to connect without proxy", cd.Instance.Id)
-
-				// Desabilita o proxy
-				client.SetProxy(nil)
-
-				// Tenta conectar sem proxy
-				err = client.Connect()
-				if err != nil {
-					w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] Failed to connect even without proxy: %v", cd.Instance.Id, err)
-					return
-				}
-				w.loggerWrapper.GetLogger(cd.Instance.Id).LogInfo("[%s] Successfully connected without proxy", cd.Instance.Id)
-			} else {
-				w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] Failed to connect: %v", cd.Instance.Id, err)
-				return
-			}
-		}
-	} else {
-		// New-device pairing. We intentionally do NOT use client.GetQRChannel:
-		// in the installed whatsmeow its qrChannel handler auto-confirms a
-		// passkey ceremony (SkipHandoffUX) and Disconnects the socket when the
-		// QR codes run out, both of which break passkey pairing (DOC2 §4.3/§4.4).
-		// Instead we Connect() directly and consume *events.QR in myEventHandler
-		// (see handleQRCodes), which pair.go dispatches to every handler anyway.
-		err = client.Connect()
-		if err != nil {
-			if strings.Contains(err.Error(), "EOF") {
-				w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] Erro de conexão WebSocket (EOF). Tentando reconectar em 5 segundos...", cd.Instance.Id)
-				time.Sleep(5 * time.Second)
-				err = client.Connect()
-				if err != nil {
-					w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] Falha na segunda tentativa de conexão: %v", cd.Instance.Id, err)
-					return
-				}
-			} else if strings.Contains(err.Error(), "username/password authentication failed") {
-				w.loggerWrapper.GetLogger(cd.Instance.Id).LogWarn("[%s] Proxy authentication failed during QR connection, attempting without proxy", cd.Instance.Id)
-
-				// Desabilita o proxy
-				client.SetProxy(nil)
-
-				// Tenta conectar sem proxy
-				err = client.Connect()
-				if err != nil {
-					w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] Failed to connect even without proxy: %v", cd.Instance.Id, err)
-					return
-				}
-				w.loggerWrapper.GetLogger(cd.Instance.Id).LogInfo("[%s] Successfully connected without proxy", cd.Instance.Id)
-			} else {
-				w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] Failed to connect: %v", cd.Instance.Id, err)
-				return
-			}
-		}
-
+	}
+	// For new-device pairing we intentionally do NOT use client.GetQRChannel:
+	// in the installed whatsmeow its qrChannel handler auto-confirms a
+	// passkey ceremony (SkipHandoffUX) and Disconnects the socket when the
+	// QR codes run out, both of which break passkey pairing (DOC2 §4.3/§4.4).
+	// Instead we Connect() directly and consume *events.QR in myEventHandler
+	// (see handleQRCodes), which pair.go dispatches to every handler anyway.
+	connected := retryConnect(
+		func() error { return w.connectClient(cd, client) },
+		func() bool { return w.clientPointer[cd.Instance.Id] == client },
+		time.Sleep,
+		func(attempt int, wait time.Duration, err error) {
+			w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] Failed to connect (attempt %d), retrying in %s: %v", cd.Instance.Id, attempt, wait, err)
+		},
+	)
+	if !connected {
+		// Replaced or removed (reconnect, force reconnect, delete) meanwhile;
+		// the replacement owns the instance now.
+		client.Disconnect()
+		w.loggerWrapper.GetLogger(cd.Instance.Id).LogInfo("[%s] Client was replaced while connecting; stopping it", cd.Instance.Id)
+		return
 	}
 
 	// Removed auto-reconnect logic to prevent infinite loops
@@ -642,6 +599,50 @@ func (w whatsmeowService) StartClient(cd *ClientData) {
 			time.Sleep(1000 * time.Millisecond)
 		}
 	}
+}
+
+// Backoff bounds between failed connection attempts of a client.
+const (
+	connectRetryFirst = 5 * time.Second
+	connectRetryMax   = 5 * time.Minute
+)
+
+// retryConnect calls connect until it succeeds while current still reports
+// that this client is the instance's registered one. A failed dial (DNS or
+// network still down after a host reboot) used to leave a registered client
+// that never connected and that nothing retried. Waits between attempts double
+// from connectRetryFirst up to connectRetryMax. It reports whether connect
+// succeeded for a client that is still current.
+func retryConnect(connect func() error, current func() bool, sleep func(time.Duration), failed func(attempt int, wait time.Duration, err error)) bool {
+	wait := connectRetryFirst
+	for attempt := 1; ; attempt++ {
+		err := connect()
+		if err == nil {
+			return current()
+		}
+		failed(attempt, wait, err)
+		sleep(wait)
+		if !current() {
+			return false
+		}
+		wait = min(2*wait, connectRetryMax)
+	}
+}
+
+// connectClient makes one connection attempt. When the proxy rejects its
+// credentials it drops the proxy and tries once more directly, as before.
+func (w whatsmeowService) connectClient(cd *ClientData, client *whatsmeow.Client) error {
+	err := client.Connect()
+	if err == nil || !strings.Contains(err.Error(), "username/password authentication failed") {
+		return err
+	}
+	w.loggerWrapper.GetLogger(cd.Instance.Id).LogWarn("[%s] Proxy authentication failed, attempting to connect without proxy", cd.Instance.Id)
+	client.SetProxy(nil)
+	if err := client.Connect(); err != nil {
+		return err
+	}
+	w.loggerWrapper.GetLogger(cd.Instance.Id).LogInfo("[%s] Successfully connected without proxy", cd.Instance.Id)
+	return nil
 }
 
 func schedulePresenceUpdates(mycli *MyClient) {

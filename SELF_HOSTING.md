@@ -96,9 +96,11 @@ to the host:
     scripts/build-private-image.sh --dry-run private-<tag>
     scripts/build-private-image.sh --load diogosrodrigues private-<tag>
 
-Then set EVOLUTION_IMAGE, redeploy and call POST /instance/connect, since the
-server does not resume the WhatsApp session by itself. To roll back, set
-EVOLUTION_IMAGE back to the previous tag, which stays loaded on the host.
+Then set EVOLUTION_IMAGE and redeploy. With CONNECT_ON_STARTUP=true the server
+resumes linked sessions at startup; a failed connection (for example DNS still
+down right after a host reboot) is retried every 5 s, doubling up to 5 min,
+until it succeeds. To roll back, set EVOLUTION_IMAGE back to the previous tag,
+which stays loaded on the host.
 
 ## Local binary
 

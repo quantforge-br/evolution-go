@@ -8,6 +8,10 @@
   device JID instead of the stale instance settings. Bootstrap, recent and
   full history no longer disappear until the next settings refresh, and a
   previous device cannot receive the new device's history.
+- A client whose first WhatsApp connection fails (for example DNS still down
+  after a host reboot) keeps retrying every 5 s, doubling up to 5 min, until
+  it connects or is replaced. It used to stay registered but offline until a
+  manual force reconnect.
 - Logs no longer contain credentials: the access log masks `token` and
   `apikey` query values (the `/ws` admin key), instance tokens are dropped
   from cache and instance-update messages and the invalid `/ws` token line,
