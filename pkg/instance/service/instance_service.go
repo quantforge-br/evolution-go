@@ -747,6 +747,10 @@ func (i instances) ForceReconnect(instanceId string, number string) error {
 		delete(i.clientPointer, instance.Id)
 		delete(i.killChannel, instance.Id)
 	}
+	// The new client's kill loop and the Logout/Disconnect/LoggedOut senders
+	// all use this channel; after the cleanup above they would block on a nil
+	// channel forever.
+	i.killChannel[instance.Id] = make(chan bool)
 
 	go i.whatsmeowService.StartClient(clientData)
 

@@ -12,6 +12,9 @@
   after a host reboot) keeps retrying every 5 s, doubling up to 5 min, until
   it connects or is replaced. It used to stay registered but offline until a
   manual force reconnect.
+- `POST /instance/forcereconnect/:id` leaves a kill channel for the new
+  client. Logout, disconnect and remote logouts no longer block forever
+  after a forced reconnect.
 - Logs no longer contain credentials: the access log masks `token` and
   `apikey` query values (the `/ws` admin key), instance tokens are dropped
   from cache and instance-update messages and the invalid `/ws` token line,
