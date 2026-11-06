@@ -90,8 +90,10 @@ stored settings, delete volumes or change the host firewall to make a test pass.
 ## Diagnostics
 
 - Run scripts/probe.py for public/private-mode and optional scoped-auth checks.
-- A 200 /server/ok is process health, not a WhatsApp session; inspect
-  /instance/status with an instance token for Connected and LoggedIn.
+- A 200 /server/ok is process health, not a WhatsApp session. GET
+  /server/whatsapp (no credentials, no identifiers) answers 503 while a linked
+  device is offline; the whatsapp-health container reports it to Dokploy.
+  Inspect /instance/status with an instance token for Connected and LoggedIn.
 - A failed callback with a blocked-host error needs a reviewed allowed-host and
   network plan, not a switch to an arbitrary public webhook collector.
 - Cloudflare 403/error 1010 can vary by HTTP client fingerprint/User-Agent.

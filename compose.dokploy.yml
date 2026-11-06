@@ -19,6 +19,10 @@ services:
       DEBUG_ENABLED: "0"
       LOG_TYPE: console
       CONNECT_ON_STARTUP: "true"
+      # Pinned current WhatsApp Web revision (bundled whatsmeow default is outdated).
+      WHATSAPP_VERSION_MAJOR: "2"
+      WHATSAPP_VERSION_MINOR: "3000"
+      WHATSAPP_VERSION_PATCH: "1052747707"
       WHATSAPP_AUTO_VERSION: "false"
       PASSKEY_PUBLIC_URL: https://evolutiongo.diogosrodrigues.com.br
       LOCAL_HTTP_ALLOWED_HOSTS: ""
@@ -56,6 +60,35 @@ services:
       - database
     security_opt:
       - no-new-privileges:true
+    logging: &logging
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  # Unhealthy while a linked WhatsApp session is down. Kept out of
+  # evolution-go's own healthcheck: Traefik stops routing to unhealthy
+  # containers, which would also cut the reconnect endpoints.
+  whatsapp-health:
+    image: ${EVOLUTION_IMAGE:?Load the private image and set EVOLUTION_IMAGE}
+    pull_policy: never
+    restart: unless-stopped
+    init: true
+    entrypoint: ["sleep", "infinity"]
+    depends_on:
+      evolution-go:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://evolution-go:8080/server/whatsapp"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 2m
+    networks:
+      - database
+    security_opt:
+      - no-new-privileges:true
+    logging: *logging
 
   evolution-postgres:
     image: postgres:16-alpine
@@ -75,6 +108,7 @@ services:
       - database
     security_opt:
       - no-new-privileges:true
+    logging: *logging
 
 volumes:
   app_data:

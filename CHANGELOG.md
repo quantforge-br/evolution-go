@@ -5,7 +5,8 @@
 ### Added
 
 - `GET /server/whatsapp` answers 503 while a linked device's WhatsApp session
-  is down, so a probe can tell a running process from a live session.
+  is down. The Dokploy compose runs a `whatsapp-health` probe container on it,
+  so the API container's health (and Traefik routing) stays independent.
 
 ### Fixed
 
@@ -24,6 +25,11 @@
   `apikey` query values (the `/ws` admin key), instance tokens are dropped
   from cache and instance-update messages and the invalid `/ws` token line,
   and SQL error/slow-query lines show placeholders instead of values.
+
+### Changed
+
+- The Dokploy compose rotates container logs (json-file, 10 MB x 3) and pins
+  the current WhatsApp Web revision used by the live deployment.
 
 ## v0.7.2
 

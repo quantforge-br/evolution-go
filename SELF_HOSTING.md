@@ -102,6 +102,18 @@ down right after a host reboot) is retried every 5 s, doubling up to 5 min,
 until it succeeds. To roll back, set EVOLUTION_IMAGE back to the previous tag,
 which stays loaded on the host.
 
+GET /server/ok only reports that the process serves HTTP. GET /server/whatsapp
+answers 503 while a linked device's WhatsApp session is down and 200
+otherwise; it reveals no identifiers. The whatsapp-health container probes it,
+so Dokploy and docker ps show it unhealthy during an outage. Do not move that
+probe into the evolution-go healthcheck: Traefik stops routing to unhealthy
+containers, which would also cut the API used to reconnect.
+
+Container logs rotate (json-file, 10 MB x 3 per service). The access log masks
+token and apikey query values, and application logs omit instance tokens and
+SQL parameter values. Logs written by older images may still contain the admin
+key and instance tokens; rotate those credentials after upgrading from one.
+
 ## Local binary
 
 The upstream prebuilt ./evolution-go has been removed because it still contains
