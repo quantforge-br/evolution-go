@@ -10,6 +10,9 @@
 
 ### Fixed
 
+- Serialize websocket event writes so concurrent offline-sync events cannot
+  panic the server with a concurrent write.
+
 - Update whatsmeow to handle unencrypted status nodes during offline sync, so a pending WhatsApp delivery batch cannot stall before regular messages reach clients.
 
 - WhatsApp clients share the process-owned, bounded authentication pool instead

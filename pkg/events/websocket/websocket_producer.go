@@ -23,6 +23,7 @@ type websocketProducer struct {
 	clients       map[string]*websocket.Conn // conexões específicas por instância
 	broadcast     []*websocket.Conn          // conexões que recebem todos os eventos
 	clientsMux    sync.RWMutex
+	writeMux      sync.Mutex
 	loggerWrapper *logger_wrapper.LoggerManager
 }
 
@@ -31,6 +32,7 @@ func NewWebsocketProducer(loggerWrapper *logger_wrapper.LoggerManager) *websocke
 		clients:       make(map[string]*websocket.Conn),
 		broadcast:     make([]*websocket.Conn, 0),
 		clientsMux:    sync.RWMutex{},
+		writeMux:      sync.Mutex{},
 		loggerWrapper: loggerWrapper,
 	}
 }
@@ -107,6 +109,12 @@ func (p *websocketProducer) Produce(queueName string, payload []byte, instanceID
 		"queue":   strings.ToLower(queueName),
 		"payload": string(payload),
 	}
+
+	// Gorilla WebSocket permits one concurrent reader and one concurrent writer,
+	// but not multiple writers. WhatsApp emits events from several goroutines
+	// during offline sync, so serialize all producer writes.
+	p.writeMux.Lock()
+	defer p.writeMux.Unlock()
 
 	p.clientsMux.RLock()
 	defer p.clientsMux.RUnlock()
