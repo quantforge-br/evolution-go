@@ -10,6 +10,12 @@
 
 ### Fixed
 
+- WhatsApp clients share the process-owned, bounded authentication pool instead
+  of opening an unbounded pool on every start or reconnect. Session count and
+  restarts no longer accumulate PostgreSQL connections and starve private
+  history recovery. SQLite keeps one shared pool on the existing main.db file;
+  the device schema is upgraded once before clients start.
+
 - Private history records initial pairing syncs under the event-producing
   device JID instead of the stale instance settings. Bootstrap, recent and
   full history no longer disappear until the next settings refresh, and a

@@ -21,6 +21,8 @@ import (
 	"github.com/gomessguii/logger"
 	"github.com/joho/godotenv"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/store/sqlstore"
+	waLog "go.mau.fi/whatsmeow/util/log"
 	"gorm.io/gorm"
 	_ "modernc.org/sqlite"
 
@@ -86,7 +88,7 @@ func init() {
 	}
 }
 
-func setupRouter(db *gorm.DB, authDB *sql.DB, sqliteDB *sql.DB, config *config.Config, conn *amqp.Connection, exPath string) *gin.Engine {
+func setupRouter(db *gorm.DB, authDB *sql.DB, deviceStore *sqlstore.Container, sqliteDB *sql.DB, config *config.Config, conn *amqp.Connection, exPath string) *gin.Engine {
 	killChannel := make(map[string](chan bool))
 	clientPointer := make(map[string]*whatsmeow.Client)
 
@@ -177,6 +179,7 @@ func setupRouter(db *gorm.DB, authDB *sql.DB, sqliteDB *sql.DB, config *config.C
 		journal,
 		instanceRepository,
 		authDB,
+		deviceStore,
 		message_repository.NewMessageRepository(db),
 		labelRepository,
 		config,
@@ -381,11 +384,31 @@ func initPostgresAuthDB(config *config.Config) (*sql.DB, error) {
 
 	err = db.Ping()
 	if err != nil {
+		_ = db.Close()
 		return nil, fmt.Errorf("erro ao pingar banco AUTH PostgreSQL: %v", err)
 	}
 
 	logger.LogInfo("Conectado ao banco AUTH PostgreSQL com pool configurado")
 	return db, nil
+}
+
+// initDeviceDB borrows the bounded AUTH pool in PostgreSQL mode. In SQLite
+// mode the caller owns the returned pool, kept on the existing main.db path.
+func initDeviceDB(authDB *sql.DB, exPath string) (*sql.DB, string, error) {
+	if authDB != nil {
+		return authDB, "postgres", nil
+	}
+	if err := os.MkdirAll(filepath.Join(exPath, "dbdata"), 0751); err != nil {
+		return nil, "", err
+	}
+	db, err := sql.Open("sqlite", filepath.Join(exPath, "dbdata", "main.db")+"?_pragma=foreign_keys(1)&_busy_timeout=5000&cache=shared&mode=rwc&_journal_mode=WAL")
+	if err != nil {
+		return nil, "", err
+	}
+	// Serialize SQLite writes and retain the same pool across client restarts.
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	return db, "sqlite", nil
 }
 
 // @title Evolution GO
@@ -427,6 +450,23 @@ func main() {
 		defer sqliteDB.Close()
 	}
 
+	deviceDB, dialect, err := initDeviceDB(authDB, exPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if deviceDB != authDB {
+		defer deviceDB.Close()
+	}
+	var deviceLog waLog.Logger
+	if cfg.WaDebug != "" {
+		deviceLog = waLog.Stdout("Database", cfg.WaDebug, true)
+	}
+	deviceStore := sqlstore.NewWithDB(deviceDB, dialect, deviceLog)
+	// Upgrade once, before clients or the journal can use the shared pool.
+	if err := deviceStore.Upgrade(context.Background()); err != nil {
+		log.Fatal(err)
+	}
+
 	migrate(db)
 
 	logger.LogInfo("Local self-hosted build: remote licensing and telemetry are disabled")
@@ -459,7 +499,7 @@ func main() {
 		logger.LogInfo("RabbitMQ URL not configured, skipping RabbitMQ connection")
 	}
 
-	r := setupRouter(db, authDB, sqliteDB, cfg, conn, exPath)
+	r := setupRouter(db, authDB, deviceStore, sqliteDB, cfg, conn, exPath)
 
 	srv := &http.Server{
 		Addr:    ":" + os.Getenv("SERVER_PORT"),

@@ -84,6 +84,7 @@ type whatsmeowService struct {
 	historyStore       *history.Store
 	instanceRepository instance_repository.InstanceRepository
 	authDB             *sql.DB
+	deviceStore        *sqlstore.Container
 	messageRepository  message_repository.MessageRepository
 	labelRepository    label_repository.LabelRepository
 	pollService        poll_service.PollService // NOVO: Serviço de enquetes
@@ -319,27 +320,11 @@ func (w whatsmeowService) StartClient(cd *ClientData) {
 		}
 	}
 
-	var container *sqlstore.Container
-
-	if w.config.WaDebug != "" {
-		dbLog := waLog.Stdout("Database", w.config.WaDebug, true)
-		if w.config.PostgresAuthDB != "" {
-			container, err = sqlstore.New(context.Background(), "postgres", w.config.PostgresAuthDB, dbLog)
-		} else {
-			dsn := fmt.Sprintf("file:%s/dbdata/main.db?_pragma=foreign_keys(1)&_busy_timeout=5000&cache=shared&mode=rwc&_journal_mode=WAL", w.exPath)
-			container, err = sqlstore.New(context.Background(), "sqlite", dsn, dbLog)
-		}
-	} else {
-		if w.config.PostgresAuthDB != "" {
-			container, err = sqlstore.New(context.Background(), "postgres", w.config.PostgresAuthDB, nil)
-		} else {
-			dsn := fmt.Sprintf("file:%s/dbdata/main.db?_pragma=foreign_keys(1)&_busy_timeout=5000&cache=shared&mode=rwc&_journal_mode=WAL", w.exPath)
-			container, err = sqlstore.New(context.Background(), "sqlite", dsn, nil)
-		}
-	}
-
-	if err != nil {
-		w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] Failed to create container: %v", cd.Instance.Id, err)
+	// The process owns one store and bounded pool for all clients. Reconnects
+	// must never open another pool or close the one used by other sessions.
+	container := w.deviceStore
+	if container == nil {
+		w.loggerWrapper.GetLogger(cd.Instance.Id).LogError("[%s] Device store is unavailable", cd.Instance.Id)
 		return
 	}
 
@@ -2864,6 +2849,7 @@ func NewWhatsmeowService(
 	historyStore *history.Store,
 	instanceRepository instance_repository.InstanceRepository,
 	authDB *sql.DB,
+	deviceStore *sqlstore.Container,
 	messageRepository message_repository.MessageRepository,
 	labelRepository label_repository.LabelRepository,
 	config *config.Config,
@@ -2885,6 +2871,7 @@ func NewWhatsmeowService(
 		historyStore:       historyStore,
 		instanceRepository: instanceRepository,
 		authDB:             authDB,
+		deviceStore:        deviceStore,
 		messageRepository:  messageRepository,
 		labelRepository:    labelRepository,
 		pollService:        pollSvc, // NOVO: Serviço de enquetes

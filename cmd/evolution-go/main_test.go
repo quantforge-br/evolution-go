@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/evolution-foundation/evolution-go/pkg/config"
 	"github.com/gin-gonic/gin"
+	"go.mau.fi/whatsmeow/store/sqlstore"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -30,7 +32,7 @@ func TestLocalRouterPreservesAuthenticationWithoutActivation(t *testing.T) {
 		ClientName:   "local-test",
 		LogDirectory: t.TempDir(),
 	}
-	router := setupRouter(db, sqlDB, nil, cfg, nil, t.TempDir())
+	router := setupRouter(db, sqlDB, nil, nil, cfg, nil, t.TempDir())
 	for _, key := range []string{"", "wrong-key"} {
 		response := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodGet, "/instance/all", nil)
@@ -67,7 +69,7 @@ func TestChatSettingsRouteUsesInstanceTokenAndIgnoresAccountOverrides(t *testing
 		t.Fatal(err)
 	}
 	cfg := &config.Config{GlobalApiKey: "admin-key", ClientName: "local-test", LogDirectory: t.TempDir()}
-	router := setupRouter(db, sqlDB, nil, cfg, nil, t.TempDir())
+	router := setupRouter(db, sqlDB, nil, nil, cfg, nil, t.TempDir())
 	check := func(key string, code int) string {
 		response := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodGet, "/chat/settings?instanceId=another-account&jid=other@s.whatsapp.net", nil)
@@ -116,7 +118,7 @@ func TestChatEventsRouteAuthenticatesAndScopesFullDeviceWithoutQueryOverrides(t 
 	}
 	mock.ExpectExec("CREATE TABLE IF NOT EXISTS private_chat_events").WillReturnResult(sqlmock.NewResult(0, 0))
 	cfg := &config.Config{GlobalApiKey: "admin-key", ClientName: "local-test", LogDirectory: t.TempDir()}
-	router := setupRouter(db, sqlDB, nil, cfg, nil, t.TempDir())
+	router := setupRouter(db, sqlDB, nil, nil, cfg, nil, t.TempDir())
 	check := func(key, after string, code int) string {
 		response := httptest.NewRecorder()
 		request := httptest.NewRequest(http.MethodGet, "/chat/events?after="+after+"&instanceId=other&jid=other", nil)
@@ -162,7 +164,7 @@ func TestAccessLogMasksCredentialQueryParameters(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := &config.Config{GlobalApiKey: "admin-key", ClientName: "local-test", LogDirectory: t.TempDir()}
-	router := setupRouter(db, sqlDB, nil, cfg, nil, t.TempDir())
+	router := setupRouter(db, sqlDB, nil, nil, cfg, nil, t.TempDir())
 	for _, target := range []string{"/ws?token=leaked-admin-key&instanceId=inst1", "/server/ok?ApiKey=leaked-instance-token"} {
 		router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, target, nil))
 	}
@@ -174,5 +176,46 @@ func TestAccessLogMasksCredentialQueryParameters(t *testing.T) {
 		if !strings.Contains(log, want) {
 			t.Fatalf("access log lacks %q:\n%s", want, log)
 		}
+	}
+}
+
+func TestDeviceDBBorrowsTheBoundedAuthPoolAcrossClientRestarts(t *testing.T) {
+	authDB, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer authDB.Close()
+	authDB.SetMaxOpenConns(25)
+	for i := 0; i < 150; i++ {
+		db, dialect, err := initDeviceDB(authDB, t.TempDir())
+		if err != nil || db != authDB || dialect != "postgres" {
+			t.Fatalf("device pool = %p, %q, %v; want existing AUTH pool %p", db, dialect, err, authDB)
+		}
+		if db.Stats().MaxOpenConnections != 25 {
+			t.Fatal("device store removed the AUTH pool's connection limit")
+		}
+	}
+}
+
+func TestSQLiteDeviceDBUsesOneBoundedPool(t *testing.T) {
+	db, dialect, err := initDeviceDB(nil, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if dialect != "sqlite" || db.Stats().MaxOpenConnections != 1 {
+		t.Fatalf("unbounded or wrong SQLite pool: %q, %+v", dialect, db.Stats())
+	}
+	shared := sqlstore.NewWithDB(db, dialect, nil)
+	if err := shared.Upgrade(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 150; i++ {
+		if _, err := shared.GetAllDevices(context.Background()); err != nil {
+			t.Fatalf("shared SQLite store failed on reuse %d: %v", i, err)
+		}
+	}
+	if stats := db.Stats(); stats.MaxOpenConnections != 1 || stats.InUse != 0 {
+		t.Fatalf("SQLite connections leaked: %+v", stats)
 	}
 }
