@@ -10,6 +10,8 @@
 
 ### Fixed
 
+- Update whatsmeow to handle unencrypted status nodes during offline sync, so a pending WhatsApp delivery batch cannot stall before regular messages reach clients.
+
 - WhatsApp clients share the process-owned, bounded authentication pool instead
   of opening an unbounded pool on every start or reconnect. Session count and
   restarts no longer accumulate PostgreSQL connections and starve private
