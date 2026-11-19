@@ -10,6 +10,11 @@
 
 ### Fixed
 
+- `SendMessage` events and send responses name a direct chat by the
+  contact's phone JID, as `Message` events do, with the LID in
+  `RecipientAlt`. Since whatsmeow's `IsOnWhatsApp` answers with the LID,
+  a send to a phone number reported the LID as `Info.Chat`, and clients that
+  keep chats by phone JID showed the contact twice.
 - Serialize websocket event writes so concurrent offline-sync events cannot
   panic the server with a concurrent write.
 

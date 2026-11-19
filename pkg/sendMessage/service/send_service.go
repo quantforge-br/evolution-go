@@ -2780,17 +2780,18 @@ func (s *sendService) SendMessage(instance *instance_model.Instance, msg *waE2E.
 
 	s.loggerWrapper.GetLogger(instance.Id).LogInfo("[%s] Message sent successfully! ServerID: %d", instance.Id, response.ServerID)
 
+	client := s.clientPointer[instance.Id]
+	var lookupPN func(context.Context, types.JID) (types.JID, error)
+	if client.Store.LIDs != nil {
+		lookupPN = client.Store.LIDs.GetPNForLID
+	}
+
 	messageInfo := types.MessageInfo{
-		MessageSource: types.MessageSource{
-			Chat:     recipient,
-			Sender:   *s.clientPointer[instance.Id].Store.ID,
-			IsFromMe: true,
-			IsGroup:  isGroup,
-		},
-		ID:        message,
-		Timestamp: time.Now(),
-		ServerID:  response.ServerID,
-		Type:      messageType,
+		MessageSource: sentMessageSource(recipient, *client.Store.ID, isGroup, lookupPN),
+		ID:            message,
+		Timestamp:     time.Now(),
+		ServerID:      response.ServerID,
+		Type:          messageType,
 	}
 
 	messageSent := &MessageSendStruct{
